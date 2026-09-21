@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Instrument_Serif } from "next/font/google";
+import { Inter, Instrument_Serif, Newsreader } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 
@@ -9,10 +9,18 @@ const inter = Inter({
   display: "swap",
 });
 
+/* Book-style serif for greetings, page titles, and headline numbers. */
+const serif = Newsreader({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-newsreader",
+  display: "swap",
+});
+
 const display = Instrument_Serif({
   subsets: ["latin"],
   weight: "400",
-  variable: "--font-display",
+  variable: "--font-instrument",
   display: "swap",
 });
 
@@ -29,7 +37,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} ${display.variable} font-sans`}>
+      <body className={`${inter.variable} ${display.variable} ${serif.variable} font-sans`}>
         <Providers>{children}</Providers>
       </body>
     </html>

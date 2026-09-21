@@ -126,7 +126,7 @@ export default function ImportPage() {
   return (
     <AppShell crumbs={[{ label: "Home", href: "/dashboard" }, { label: "Import Spreadsheet" }]}>
       <div className="mx-auto max-w-6xl">
-        <h1 className="text-[28px] font-bold tracking-[-0.03em] text-ink-950">Import from a spreadsheet</h1>
+        <h1 className="font-serif text-[32px] font-medium leading-tight tracking-[-0.01em] text-ink-950">Import from a spreadsheet</h1>
         <p className="mt-2 max-w-2xl text-[16px] text-ink-500">
           Bring in many listings and buyers at once. Every row becomes a full file with its own checklist, deadlines, and
           documents list — exactly as if you had entered it by hand.
@@ -194,16 +194,26 @@ export default function ImportPage() {
               <CheckCircle2 className="h-7 w-7 text-emerald-600" />
               {created.length} file{created.length === 1 ? "" : "s"} imported
             </p>
-            <p className="mt-2 text-[16px] text-ink-500">They are on your Home screen now. Open any of them to see its checklist.</p>
+            <p className="mt-2 text-[16px] text-ink-500">
+              They are on your Home screen now. Each client with an email also has a portal login, shown beside their file.
+            </p>
             <ul className="mt-5 divide-y divide-hairline overflow-hidden rounded-xl border border-hairline">
-              {created.map((c) => (
-                <li key={c.id}>
-                  <Link href={`/files/${c.id}`} className="flex items-center justify-between gap-3 px-4 py-3.5 text-[15px] text-ink-800 hover:bg-canvas">
-                    <span className="truncate">{c.label}</span>
-                    <ArrowRight className="h-4 w-4 shrink-0 text-ink-400" />
-                  </Link>
-                </li>
-              ))}
+              {created.map((c) => {
+                const access = files.find((f) => f.id === c.id)?.portalAccess;
+                return (
+                  <li key={c.id}>
+                    <Link href={`/files/${c.id}`} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 text-[15px] text-ink-800 hover:bg-canvas">
+                      <span className="min-w-0 flex-1 truncate">{c.label}</span>
+                      {access && (
+                        <span className="font-mono text-[14px] text-ink-600" title="Client portal login">
+                          {access.email} · {access.password}
+                        </span>
+                      )}
+                      <ArrowRight className="h-4 w-4 shrink-0 text-ink-400" />
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
             <div className="mt-6 flex flex-wrap gap-2">
               <Link href="/dashboard">
@@ -396,7 +406,7 @@ function ColumnsPanel({ sheet, mapping }: { sheet: SheetData; mapping: ColumnMap
             h ? (
               <li key={i} className="flex items-center justify-between gap-3 bg-surface px-5 py-2.5 text-[15px]">
                 <span className="truncate font-medium text-ink-800">“{h}”</span>
-                <span className={cn("shrink-0 text-[14px]", mapping.byIndex[i] ? "text-emerald-700" : "text-violet-700")}>
+                <span className={cn("shrink-0 text-[14px]", mapping.byIndex[i] ? "text-emerald-700" : "text-ink-700")}>
                   {mapping.byIndex[i] ? `→ ${COLUMNS.find((c) => c.key === mapping.byIndex[i])!.header}` : "→ Extra detail"}
                 </span>
               </li>

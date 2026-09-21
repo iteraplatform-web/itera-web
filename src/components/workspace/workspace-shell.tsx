@@ -4,8 +4,8 @@ import { useMemo } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
-import { FileHeader, FileHeaderCompact } from "@/components/workspace/file-header";
-import { FileSectionNav } from "@/components/workspace/workspace-sidebar";
+import { FileHeaderCompact } from "@/components/workspace/file-header";
+import { FileSectionNav, navFor, SubTabs } from "@/components/workspace/workspace-sidebar";
 import { QuickLeadPrompt } from "@/components/workspace/quick-lead-prompt";
 import { Button } from "@/components/ui/button";
 import { useTransactionsStore } from "@/stores";
@@ -153,11 +153,7 @@ export function WorkspaceShell({
           <FileSectionNav file={file} active={section} variant="rail" />
         </div>
 
-        {section === "overview" ? (
-          <FileHeader file={file} onStatusChange={handleStatusChange} />
-        ) : (
-          <FileHeaderCompact file={file} onStatusChange={handleStatusChange} />
-        )}
+        <FileHeaderCompact file={file} onStatusChange={handleStatusChange} />
 
         {file.isQuickLead && (
           <div className="mt-5">
@@ -167,9 +163,10 @@ export function WorkspaceShell({
 
         <div className="mt-6">
           <div className="mb-4">
-            <h1 className="text-[24px] font-bold tracking-[-0.025em] text-ink-950">{title ?? meta.title}</h1>
-            <p className="mt-1 text-[15px] text-ink-500">{blurb ?? meta.blurb}</p>
+            <h1 className="font-serif text-[32px] font-medium leading-tight tracking-[-0.01em] text-ink-950">{title ?? navFor(section, file).label}</h1>
+            <p className="mt-1 text-[16px] text-ink-600">{blurb ?? meta.blurb}</p>
           </div>
+          <SubTabs file={file} active={section} />
           {/* Overview lays out its own panels; every other section sits in one card. */}
           {section === "overview" ? (
             children

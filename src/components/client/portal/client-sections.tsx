@@ -147,60 +147,44 @@ async function storeDoc(f: File): Promise<UploadMeta> {
 
 export function ClientDocuments({ file, focus }: { file: TransactionFile; focus?: string }) {
   useFocusTarget(focus);
-  const fromYou = file.documents.filter((d) => d.status === "needed" && d.expectedFrom === "Client");
-  const fromOthers = file.documents.filter((d) => d.status === "needed" && d.expectedFrom !== "Client");
-  const copies = file.documents.filter((d) => d.status === "received");
+  // Only the client's own paperwork — the scope rules out a full document vault.
+  const mine = file.documents.filter((d) => d.expectedFrom === "Client");
+  const toDo = mine.filter((d) => d.status === "needed");
+  const done = mine.filter((d) => d.status === "received");
 
   return (
     <div>
-      <PageTitle title="Documents" sub="Upload what your agent has asked for, and keep a copy of everything that's in." />
+      <PageTitle title="Documents" sub="What your agent needs from you, and what you've already sent." />
       <div className="space-y-6">
-        <PCard title={`Needed from you${fromYou.length ? ` (${fromYou.length})` : ""}`} icon={Upload}>
-          {fromYou.length === 0 ? (
-            <p className="rounded-xl bg-emerald-50 px-4 py-4 text-[16px] text-emerald-900">
-              You&apos;re all caught up — there&apos;s nothing to upload right now.
+        <PCard title={toDo.length ? `Still needed (${toDo.length})` : "Still needed"} icon={Upload}>
+          {toDo.length === 0 ? (
+            <p className="rounded-xl bg-emerald-50 px-4 py-4 text-[17px] text-emerald-900">
+              You&apos;re all caught up. There&apos;s nothing to upload.
             </p>
           ) : (
             <ul className="space-y-3">
-              {fromYou.map((d) => (
+              {toDo.map((d) => (
                 <ClientUploadRow key={d.id} doc={d} file={file} />
               ))}
             </ul>
           )}
         </PCard>
 
-        {fromOthers.length > 0 && (
-          <PCard title="Being prepared by others" icon={Hourglass}>
-            <p className="-mt-1 mb-3 text-[15px] text-ink-600">You don&apos;t need to do anything — these come from the people handling your sale.</p>
+        {done.length > 0 && (
+          <PCard title={`Already sent (${done.length})`} icon={FileText}>
             <ul className="divide-y divide-hairline">
-              {fromOthers.map((d) => (
-                <li key={d.id} className="flex items-center justify-between gap-3 py-3">
-                  <span className="text-[16px] text-ink-800">{d.name}</span>
-                  <span className="shrink-0 text-[14px] text-ink-500">From {d.expectedFrom}</span>
-                </li>
-              ))}
-            </ul>
-          </PCard>
-        )}
-
-        <PCard title={`Your copies (${copies.length})`} icon={FileText}>
-          {copies.length === 0 ? (
-            <p className="text-[16px] text-ink-600">Signed and received documents will appear here.</p>
-          ) : (
-            <ul className="divide-y divide-hairline">
-              {copies.map((d) => (
-                <li key={d.id} className="flex items-center gap-3 py-3">
-                  <FileText className="h-5 w-5 shrink-0 text-emerald-600" />
+              {done.map((d) => (
+                <li key={d.id} className="flex items-center gap-3 py-3.5">
+                  <Check className="h-6 w-6 shrink-0 text-emerald-600" />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[16px] font-medium text-ink-900">{d.name}</p>
-                    <p className="text-[14px] text-ink-500">
-                      {d.receivedAt ? `In since ${format(parseISO(d.receivedAt), "MMM d")}` : "On file"}
-                      {d.sizeKb ? ` · ${formatBytes(d.sizeKb * 1024)}` : ""}
+                    <p className="truncate text-[17px] font-medium text-ink-900">{d.name}</p>
+                    <p className="text-[15px] text-ink-500">
+                      {d.receivedAt ? `Received ${format(parseISO(d.receivedAt), "MMMM d")}` : "Received"}
                     </p>
                   </div>
                   <button
                     onClick={() => openDocument(d, file)}
-                    className="flex h-10 shrink-0 items-center gap-2 rounded-xl bg-canvas px-4 text-[15px] font-semibold text-ink-800 ring-1 ring-inset ring-hairline hover:bg-ink-100"
+                    className="flex h-11 shrink-0 items-center gap-2 rounded-xl bg-canvas px-4 text-[16px] font-semibold text-ink-800 ring-1 ring-inset ring-hairline hover:bg-ink-100"
                   >
                     <Eye className="h-4 w-4" />
                     View
@@ -208,8 +192,8 @@ export function ClientDocuments({ file, focus }: { file: TransactionFile; focus?
                 </li>
               ))}
             </ul>
-          )}
-        </PCard>
+          </PCard>
+        )}
       </div>
     </div>
   );

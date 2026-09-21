@@ -138,11 +138,11 @@ function NewFileContent() {
   const finishBuild = () => {
     if (completingId) {
       completeIntake(completingId, answers);
-      router.push(`/files/${completingId}`);
+      router.push(`/files/${completingId}?welcome=1`);
       return;
     }
     const id = createFile(answers);
-    router.push(`/files/${id}`);
+    router.push(`/files/${id}?welcome=1`);
   };
 
   const handleSubmit = () => setBuilding(true);
@@ -353,7 +353,7 @@ function NewFileContent() {
               />
 
               {form.isReferral && (
-                <div className="grid gap-4 rounded-xl border border-violet-200 bg-violet-50/50 p-4 sm:grid-cols-2">
+                <div className="grid gap-4 rounded-xl border border-ink-200 bg-ink-100/50 p-4 sm:grid-cols-2">
                   <Input
                     id="referralSource"
                     label="Referral source"
@@ -471,8 +471,8 @@ function NewFileContent() {
 
               {/* The conditional payoff — the point of the whole flow */}
               {conditionalTasks.length > 0 && (
-                <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-4">
-                  <p className="flex items-center gap-2 text-[14px] font-semibold text-violet-900">
+                <div className="rounded-2xl border border-ink-200 bg-ink-100/60 p-4">
+                  <p className="flex items-center gap-2 text-[14px] font-semibold text-ink-900">
                     <Sparkles className="h-3.5 w-3.5" />
                     {conditionalTasks.length} task
                     {conditionalTasks.length === 1 ? "" : "s"} added because of your answers
@@ -480,10 +480,10 @@ function NewFileContent() {
                   <ul className="mt-2.5 space-y-1.5">
                     {conditionalTasks.map((t) => (
                       <li key={t.id} className="flex items-start gap-2 text-[14px]">
-                        <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-500" />
+                        <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-500" />
                         <span>
-                          <span className="font-medium text-violet-900">{t.title}</span>
-                          <span className="text-violet-600"> — {t.addedBecause}</span>
+                          <span className="font-medium text-ink-900">{t.title}</span>
+                          <span className="text-ink-600"> — {t.addedBecause}</span>
                         </span>
                       </li>
                     ))}

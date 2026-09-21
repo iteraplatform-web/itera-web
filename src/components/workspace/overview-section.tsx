@@ -50,17 +50,17 @@ const CLOSED = new Set(["closed", "dropped", "terminated"]);
  */
 export function OverviewSection({ file }: { file: TransactionFile }) {
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
-      <div className="min-w-0 space-y-6">
-        <NextUpCard file={file} />
-        <WaitingOnCard file={file} />
-        <LatestMessageCard file={file} />
-      </div>
-      <div className="min-w-0 space-y-6">
-        <RemindersCard file={file} />
-        <KeyDatesCard file={file} />
-        <KeyFactsCard file={file} />
-        <MoneyCard file={file} />
+    <div className="space-y-6">
+      <LatestMessageCard file={file} />
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+        <div className="min-w-0 space-y-6">
+          <NextUpCard file={file} />
+          <WaitingOnCard file={file} />
+        </div>
+        <div className="min-w-0 space-y-6">
+          <KeyDatesCard file={file} />
+          <RemindersCard file={file} />
+        </div>
       </div>
     </div>
   );
@@ -118,7 +118,7 @@ const TONE_CHIP = {
 
 /* ── 1. Next up ─────────────────────────────────────────────────────── */
 
-const SHOW_TASKS = 4;
+const SHOW_TASKS = 3;
 
 function NextUpCard({ file }: { file: TransactionFile }) {
   const toggleTask = useTransactionsStore((s) => s.toggleTask);
@@ -261,97 +261,66 @@ function NextTaskRow({
 /* ── 2. Waiting on ──────────────────────────────────────────────────── */
 
 function WaitingOnCard({ file }: { file: TransactionFile }) {
-  const sendEmail = useTransactionsStore((s) => s.sendEmail);
   const outstanding = file.documents.filter((d) => d.status === "needed");
-  const lastRequest = file.sentEmails.find((e) => e.templateId === "doc_request");
-
   if (outstanding.length === 0 || CLOSED.has(file.status)) return null;
-
-  // Group by who owes it: "chase the client" and "chase the title company" are different calls.
-  const byWho = outstanding.reduce<Record<string, typeof outstanding>>((acc, d) => {
-    const who = d.expectedFrom ?? "Other";
-    (acc[who] ??= []).push(d);
-    return acc;
-  }, {});
-  const fromClient = byWho["Client"]?.length ?? 0;
+  const shown = outstanding.slice(0, 4);
 
   return (
     <Panel
-      title="Waiting on"
+      title={`Waiting on ${outstanding.length} document${outstanding.length === 1 ? "" : "s"}`}
       icon={Hourglass}
       action={
-        <Link href={sectionHref(file.id, "documents")} className="text-[14px] font-semibold text-itera-700 hover:text-itera-800">
-          All documents →
+        <Link href={sectionHref(file.id, "documents")} className="text-[15px] font-semibold text-itera-700 hover:underline">
+          All documents
         </Link>
       }
     >
-      <div className="space-y-4">
-        {Object.entries(byWho).map(([who, docs]) => (
-          <div key={who}>
-            <p className="mb-2 text-[13px] font-semibold uppercase tracking-[0.06em] text-ink-500">
-              From {who.toLowerCase() === "client" ? "the client" : who} · {docs.length}
-            </p>
-            <ul className="divide-y divide-hairline overflow-hidden rounded-xl border border-hairline">
-              {docs.slice(0, 3).map((d) => (
-                <li key={d.id} className="flex items-center gap-3 bg-surface px-4 py-3">
-                  <FileText className="h-5 w-5 shrink-0 text-ink-400" />
-                  <span className="min-w-0 flex-1 truncate text-[15px] text-ink-800">{d.name}</span>
-                  <Link href={sectionHref(file.id, "documents", d.name)}>
-                    <Button size="xs" variant="secondary">
-                      Upload
-                    </Button>
-                  </Link>
-                </li>
-              ))}
-              {docs.length > 3 && (
-                <li className="bg-canvas px-4 py-2.5 text-[14px] text-ink-500">and {docs.length - 3} more</li>
-              )}
-            </ul>
-          </div>
+      <ul className="divide-y divide-hairline">
+        {shown.map((d) => (
+          <li key={d.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[16px] text-ink-900">{d.name}</span>
+              <span className="block text-[14px] text-ink-500">
+                From {d.expectedFrom === "Client" ? "the client" : d.expectedFrom ?? "—"}
+              </span>
+            </span>
+            <Link href={sectionHref(file.id, "documents", d.name)}>
+              <Button size="sm" variant="secondary">
+                Upload
+              </Button>
+            </Link>
+          </li>
         ))}
-      </div>
-
-      {fromClient > 0 && file.email && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-canvas px-4 py-3">
-          <p className="text-[14px] text-ink-600">
-            {lastRequest
-              ? `Last asked ${format(parseISO(lastRequest.sentAt), "MMM d")}.`
-              : "The client hasn't been asked yet."}
-          </p>
-          <Button size="sm" variant="secondary" onClick={() => sendEmail(file.id, "doc_request")}>
-            <Mail className="h-4 w-4" />
-            Email the client a list
-          </Button>
-        </div>
+      </ul>
+      {outstanding.length > shown.length && (
+        <p className="mt-3 text-[15px] text-ink-500">and {outstanding.length - shown.length} more</p>
       )}
     </Panel>
   );
 }
 
-/* ── 3. Latest client message ───────────────────────────────────────── */
+/* ── 3. A question from the client ──────────────────────────────────── */
 
 function LatestMessageCard({ file }: { file: TransactionFile }) {
   const last = file.messages[file.messages.length - 1];
   if (!last || last.sender !== "client") return null;
-  // A question needs an answer; a thank-you just needs to be seen.
-  const needsAnswer = /\?|can we|could you|when|what|how|please/i.test(last.content);
+  // Only interrupt for a question — a thank-you doesn't need a banner.
+  if (!/\?|can we|could you|when|what|how|please/i.test(last.content)) return null;
   return (
-    <Panel title={needsAnswer ? "Your client is waiting for an answer" : "Latest from your client"} icon={MessageSquare}>
-      <blockquote className="rounded-xl bg-canvas px-4 py-3.5 text-[16px] leading-relaxed text-ink-800">
-        &ldquo;{last.content}&rdquo;
-      </blockquote>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-[14px] text-ink-500">
-          {file.clientName.split(" ")[0]} · {format(parseISO(last.sentAt), "EEE, MMM d 'at' h:mm a")}
-        </p>
-        <Link href={sectionHref(file.id, "communications", "thread")}>
-          <Button size="sm">
-            Reply
-            <ArrowRight className="h-4 w-4" />
-          </Button>
-        </Link>
-      </div>
-    </Panel>
+    <Link
+      href={sectionHref(file.id, "communications", "thread")}
+      className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 hover:shadow-md"
+    >
+      <MessageSquare className="h-5 w-5 shrink-0 text-amber-700" />
+      <span className="min-w-0 flex-1">
+        <span className="block text-[16px] font-semibold text-ink-950">{file.clientName.split(" ")[0]} asked a question</span>
+        <span className="block truncate text-[15px] text-ink-700">&ldquo;{last.content}&rdquo;</span>
+      </span>
+      <span className="flex shrink-0 items-center gap-1 text-[15px] font-semibold text-ink-900">
+        Reply
+        <ArrowRight className="h-4 w-4" />
+      </span>
+    </Link>
   );
 }
 
@@ -578,124 +547,6 @@ function KeyDatesCard({ file }: { file: TransactionFile }) {
           <Input id="closingDate" label="Closing date" type="date" value={closing} onChange={(e) => setClosing(e.target.value)} />
         </div>
       </Modal>
-    </Panel>
-  );
-}
-
-/* ── 6. Key facts ───────────────────────────────────────────────────── */
-
-function KeyFactsCard({ file }: { file: TransactionFile }) {
-  const pinned = (file.customFields ?? []).filter((f) => f.pinned);
-  const facts: { label: string; value: string }[] = [
-    ...(file.coClientName ? [{ label: "Co-client", value: file.coClientName }] : []),
-    ...(file.preferredContact || file.clientProfile?.preferredContact
-      ? [
-          {
-            label: "Prefers",
-            value: [file.clientProfile?.preferredContact || file.preferredContact, file.clientProfile?.preferredContactTime || file.preferredContactTime]
-              .filter(Boolean)
-              .join(", "),
-          },
-        ]
-      : []),
-    ...(file.petNames ? [{ label: "Pets", value: file.petNames }] : []),
-    ...(file.isReferral ? [{ label: "Referral", value: `${file.referralPercentage ?? 0}% to ${file.referralSource || "referring broker"}` }] : []),
-    ...(file.isRelocation ? [{ label: "Relocation", value: "Corporate relocation file" }] : []),
-    ...pinned.map((f) => ({ label: f.label, value: f.type === "yesno" ? (f.value === "yes" ? "Yes" : "No") : f.value })),
-  ];
-
-  return (
-    <Panel
-      title="Client at a glance"
-      icon={Pin}
-      action={
-        <Link href={sectionHref(file.id, "client_profile")} className="text-[14px] font-semibold text-itera-700 hover:text-itera-800">
-          Edit →
-        </Link>
-      }
-    >
-      <div className="grid grid-cols-2 gap-2">
-        {file.phone && (
-          <a href={`tel:${file.phone.replace(/[^\d+]/g, "")}`}>
-            <Button variant="secondary" size="sm" className="w-full">
-              <Phone className="h-4 w-4" />
-              Call
-            </Button>
-          </a>
-        )}
-        {file.email && (
-          <a href={`mailto:${file.email}`}>
-            <Button variant="secondary" size="sm" className="w-full">
-              <Mail className="h-4 w-4" />
-              Email
-            </Button>
-          </a>
-        )}
-      </div>
-      <p className="mt-3 text-[15px] text-ink-700">
-        {file.phone} {file.email && <span className="text-ink-500">· {file.email}</span>}
-      </p>
-      {facts.length > 0 && (
-        <dl className="mt-3 divide-y divide-hairline border-t border-hairline">
-          {facts.map((f) => (
-            <div key={f.label} className="flex items-baseline justify-between gap-4 py-2.5">
-              <dt className="shrink-0 text-[15px] text-ink-500">{f.label}</dt>
-              <dd className="text-right text-[15px] font-medium text-ink-900">{f.value}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
-    </Panel>
-  );
-}
-
-/* ── 7. Money ───────────────────────────────────────────────────────── */
-
-function MoneyCard({ file }: { file: TransactionFile }) {
-  const user = useAuthStore((s) => s.user);
-  const p = calculatePayout(file, user);
-  const pendingOffers = file.offers.filter((o) => o.status === "pending").length;
-
-  return (
-    <Panel
-      title="Money"
-      icon={Wallet}
-      action={
-        <Link href={sectionHref(file.id, "financials", "commission")} className="text-[14px] font-semibold text-itera-700 hover:text-itera-800">
-          Details →
-        </Link>
-      }
-    >
-      <p className="text-[14px] text-ink-500">Your expected take-home</p>
-      <p className="tnum mt-1 text-[30px] font-bold leading-none tracking-[-0.02em] text-ink-950">{money(p.net)}</p>
-      <p className="mt-2 text-[14px] text-ink-500">
-        From {money(p.gross)} gross at {p.ratePct.toFixed(2)}%
-        {p.referralFee > 0 ? `, less ${money(p.referralFee)} referral` : ""}, {p.agentSplitPct}/{100 - p.agentSplitPct} split and{" "}
-        {money(p.transactionFee)} fee.
-      </p>
-      <dl className="mt-4 divide-y divide-hairline border-t border-hairline">
-        <div className="flex items-baseline justify-between py-2.5">
-          <dt className="text-[15px] text-ink-500">Earnest money</dt>
-          <dd
-            className={cn(
-              "text-[15px] font-semibold",
-              file.financials.earnestMoneyStatus === "received" ? "text-emerald-700" : "text-amber-700"
-            )}
-          >
-            {money(file.financials.earnestMoney)} · {file.financials.earnestMoneyStatus === "received" ? "Received" : "Pending"}
-          </dd>
-        </div>
-        {pendingOffers > 0 && (
-          <div className="flex items-baseline justify-between py-2.5">
-            <dt className="text-[15px] text-ink-500">Offers to answer</dt>
-            <dd>
-              <Link href={sectionHref(file.id, "financials", "offers")} className="text-[15px] font-semibold text-amber-700 hover:underline">
-                {pendingOffers} waiting
-              </Link>
-            </dd>
-          </div>
-        )}
-      </dl>
     </Panel>
   );
 }

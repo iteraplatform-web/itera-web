@@ -143,7 +143,7 @@ export function FileHeader({ file, onStatusChange }: FileHeaderProps) {
                 ))}
               </select>
 
-              <Link href={`/client/${file.id}`} target="_blank">
+              <Link href={`/client/login?email=${encodeURIComponent(file.portalAccess?.email ?? file.email)}`} target="_blank">
                 <Button size="sm" variant="secondary">
                   <ExternalLink className="h-3.5 w-3.5" />
                   Client view
@@ -273,7 +273,7 @@ export function FileHeaderCompact({ file, onStatusChange }: FileHeaderProps) {
             </option>
           ))}
         </select>
-        <Link href={`/client/${file.id}`} target="_blank">
+        <Link href={`/client/login?email=${encodeURIComponent(file.portalAccess?.email ?? file.email)}`} target="_blank">
           <Button size="sm" variant="secondary">
             <ExternalLink className="h-4 w-4" />
             Client view

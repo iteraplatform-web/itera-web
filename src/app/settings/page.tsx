@@ -52,7 +52,7 @@ function SettingsContent() {
     <AppShell crumbs={[{ label: "Home", href: "/dashboard" }, { label: "Settings" }]}>
       <div className="mx-auto max-w-5xl">
         <div>
-          <h1 className="text-[28px] font-bold leading-none tracking-[-0.03em] text-ink-950">
+          <h1 className="font-serif text-[32px] font-medium leading-tight tracking-[-0.01em] text-ink-950">
             Settings
           </h1>
           <p className="mt-2 text-[15px] text-ink-500">

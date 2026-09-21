@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ExternalLink, Eye, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ClientHome } from "@/components/client/portal/client-home";
+import { PortalAccessCard } from "@/components/workspace/portal-access-card";
 import type { TransactionFile } from "@/types";
 
 /**
@@ -12,7 +13,10 @@ import type { TransactionFile } from "@/types";
  */
 export function ClientViewPreview({ file }: { file: TransactionFile }) {
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
+      <PortalAccessCard file={file} />
+
+      <h3 className="pt-2 text-[19px] font-semibold text-ink-950">Preview</h3>
       <div className="flex flex-col gap-3 rounded-2xl bg-canvas p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface text-ink-600 ring-1 ring-hairline">
@@ -26,7 +30,7 @@ export function ClientViewPreview({ file }: { file: TransactionFile }) {
             </p>
           </div>
         </div>
-        <Link href={`/client/${file.id}`} target="_blank" className="shrink-0">
+        <Link href={`/client/login?email=${encodeURIComponent(file.portalAccess?.email ?? file.email)}`} target="_blank" className="shrink-0">
           <Button variant="secondary">
             <ExternalLink className="h-4 w-4" />
             Open the full portal

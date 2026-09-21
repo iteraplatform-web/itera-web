@@ -14,7 +14,7 @@ const variants = {
   amber: "bg-amber-50 text-amber-700 ring-amber-200/70",
   red: "bg-red-50 text-red-700 ring-red-200/70",
   gray: "bg-ink-100 text-ink-600 ring-ink-200/70",
-  purple: "bg-violet-50 text-violet-700 ring-violet-200/70",
+  purple: "bg-ink-100 text-ink-700 ring-ink-200/70",
   ink: "bg-ink-950 text-white ring-transparent",
 } as const;
 
@@ -24,7 +24,7 @@ const dots = {
   amber: "bg-amber-500",
   red: "bg-red-500",
   gray: "bg-ink-400",
-  purple: "bg-violet-500",
+  purple: "bg-ink-500",
   ink: "bg-white",
 } as const;
 

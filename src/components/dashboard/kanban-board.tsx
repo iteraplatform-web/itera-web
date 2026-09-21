@@ -155,7 +155,6 @@ function KanbanCard({ file, isOverlay }: { file: TransactionFile; isOverlay?: bo
   });
 
   const nextTask = getMostUrgentTask(file);
-  const progress = getFileProgress(file);
   const days = nextTask?.dueDate ? daysRemaining(nextTask.dueDate) : null;
   const late = nextTask?.dueDate ? isOverdue(nextTask.dueDate) : false;
 
@@ -182,89 +181,28 @@ function KanbanCard({ file, isOverlay }: { file: TransactionFile; isOverlay?: bo
         </button>
 
         <Link href={`/files/${file.id}`} className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2">
-            <p className="truncate text-[14px] font-semibold leading-tight text-ink-950">
-              {file.clientName}
-            </p>
-            <span className="shrink-0 rounded bg-ink-100 px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-ink-500">
-              {file.side === "listing" ? "List" : "Buy"}
-            </span>
-          </div>
-
-          <p className="mt-1 line-clamp-2 text-[13px] leading-snug text-ink-500">
-            {file.propertyAddress}
+          <p className="line-clamp-2 text-[15px] font-semibold leading-snug text-ink-950">
+            {file.propertyAddress || file.clientName}
           </p>
-
+          <p className="mt-0.5 truncate text-[14px] text-ink-600">{file.clientName}</p>
           {file.listPrice > 0 && (
-            <p className="tnum mt-2 text-[15px] font-bold tracking-[-0.02em] text-ink-950">
-              ${file.listPrice.toLocaleString()}
-            </p>
+            <p className="tnum mt-2 text-[15px] font-bold text-ink-950">${file.listPrice.toLocaleString()}</p>
           )}
-
-          {(file.isReferral || file.isRelocation || file.offers.length > 1) && (
-            <div className="mt-2 flex flex-wrap gap-1">
-              {file.isReferral && (
-                <Badge variant="purple" size="xs">
-                  Referral
-                </Badge>
-              )}
-              {file.isRelocation && (
-                <Badge variant="default" size="xs">
-                  Relocation
-                </Badge>
-              )}
-              {file.offers.length > 1 && (
-                <Badge variant="amber" size="xs">
-                  {file.offers.length} offers
-                </Badge>
-              )}
-            </div>
-          )}
-
           {nextTask && (
-            <div className="mt-2.5 rounded-lg bg-canvas px-2.5 py-2">
-              <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-ink-500">
-                Next
-              </p>
-              <p className="mt-0.5 truncate text-[13px] font-medium text-ink-800">
-                {nextTask.title}
-              </p>
+            <p className="mt-2 border-t border-hairline pt-2 text-[14px] text-ink-700">
+              <span className="line-clamp-1">{nextTask.title}</span>
               {days !== null && (
-                <p
+                <span
                   className={cn(
-                    "tnum mt-0.5 text-[13px] font-semibold",
-                    late || days <= 3
-                      ? "text-red-600"
-                      : days <= 7
-                      ? "text-amber-600"
-                      : "text-emerald-600"
+                    "tnum mt-1 inline-block rounded-full px-2 py-0.5 text-[13px] font-semibold",
+                    late || days <= 3 ? "bg-red-100 text-red-800" : days <= 7 ? "bg-amber-100 text-amber-900" : "bg-emerald-100 text-emerald-800"
                   )}
                 >
-                  {late
-                    ? `${Math.abs(days)} days overdue`
-                    : days === 0
-                    ? "Due today"
-                    : `${days} days left`}
-                </p>
+                  {late ? `${Math.abs(days)} days late` : days === 0 ? "Today" : `${days} days`}
+                </span>
               )}
-            </div>
+            </p>
           )}
-
-          <div className="mt-2.5">
-            <div className="flex items-center justify-between text-[12px] text-ink-500">
-              <span>Checklist</span>
-              <span className="tnum font-semibold text-ink-600">{progress}%</span>
-            </div>
-            <div className="mt-1 h-1 overflow-hidden rounded-full bg-ink-100">
-              <div
-                className={cn(
-                  "h-full rounded-full transition-[width] duration-500",
-                  progress === 100 ? "bg-emerald-500" : "bg-itera-500"
-                )}
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-          </div>
         </Link>
       </div>
     </div>

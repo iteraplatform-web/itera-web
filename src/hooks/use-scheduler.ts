@@ -100,7 +100,7 @@ export function useScheduler() {
               message: `${label} · due ${format(parseISO(task.dueDate), "EEE, MMM d")}`,
               type,
             },
-            announced++ < 2
+            announced++ < 1
           );
         }
       }

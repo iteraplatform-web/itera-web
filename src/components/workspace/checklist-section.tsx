@@ -302,7 +302,7 @@ function TaskRow({
 
           {/* Why this task exists — the conditional-rule payoff */}
           {task.addedBecause && (
-            <p className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-violet-50 px-2.5 py-1 text-[13px] font-medium text-violet-700 ring-1 ring-inset ring-violet-200/70">
+            <p className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-ink-100 px-2.5 py-1 text-[13px] font-medium text-ink-700 ring-1 ring-inset ring-ink-200/70">
               <Sparkles className="h-3 w-3" />
               Added because: {task.addedBecause}
             </p>

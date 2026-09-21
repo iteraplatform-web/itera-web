@@ -48,7 +48,7 @@ export function AuthShell({
         <div className="bg-dots absolute inset-0 opacity-60" />
         <div
           className="pointer-events-none absolute -right-24 top-1/4 h-[420px] w-[420px] rounded-full blur-3xl"
-          style={{ background: "radial-gradient(closest-side, rgba(47,82,224,0.35), transparent)" }}
+          style={{ background: "radial-gradient(closest-side, rgba(255,255,255,0.08), transparent)" }}
         />
         <div className="relative flex h-full items-center justify-center p-12">
           {aside}

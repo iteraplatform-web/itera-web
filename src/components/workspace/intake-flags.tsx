@@ -31,7 +31,7 @@ export function IntakeFlags({ file }: { file: TransactionFile }) {
   return (
     <section className="rounded-2xl border border-hairline bg-surface p-5 sm:p-6">
       <h3 className="flex items-center gap-2 text-[18px] font-semibold text-ink-950">
-        <Sparkles className="h-5 w-5 text-violet-600" />
+        <Sparkles className="h-5 w-5 text-ink-600" />
         Answers that shape the checklist
       </h3>
       <p className="mt-1 max-w-xl text-[15px] text-ink-500">
@@ -41,7 +41,7 @@ export function IntakeFlags({ file }: { file: TransactionFile }) {
       <div className="mt-5 space-y-4">
         <YesNoRow label="Is this a referral?" hint="Adds the referral agreement and deducts the fee from your payout." value={isReferral} onChange={setIsReferral} />
         {isReferral && (
-          <div className="grid gap-4 rounded-xl bg-violet-50/60 p-4 sm:grid-cols-2">
+          <div className="grid gap-4 rounded-xl bg-ink-100/60 p-4 sm:grid-cols-2">
             <Input id="if-src" label="Referred by" value={source} onChange={(e) => setSource(e.target.value)} placeholder="Anchor Relocation" />
             <Input id="if-pct" label="Referral fee" type="number" trailing="%" value={pct} onChange={(e) => setPct(e.target.value)} placeholder="25" />
           </div>

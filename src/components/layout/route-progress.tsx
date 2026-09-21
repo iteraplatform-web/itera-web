@@ -82,7 +82,7 @@ function Bar() {
       style={{ opacity: visible ? 1 : 0, transition: "opacity 250ms" }}
     >
       <div
-        className="h-full bg-gradient-to-r from-itera-500 to-itera-600 shadow-[0_0_8px_rgba(47,82,224,0.6)]"
+        className="h-full bg-gradient-to-r from-itera-500 to-itera-600 shadow-[0_0_8px_rgba(20,20,19,0.35)]"
         style={{ width: `${progress}%`, transition: "width 200ms ease-out" }}
       />
     </div>

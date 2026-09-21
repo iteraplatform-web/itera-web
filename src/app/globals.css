@@ -1,41 +1,49 @@
 @import "tailwindcss";
 
 @theme {
-  /* ── Brand ─────────────────────────────────────────────── */
-  --color-itera-50:  #eef2ff;
-  --color-itera-100: #e0e7ff;
-  --color-itera-200: #c7d2fe;
-  --color-itera-300: #a5b4fc;
-  --color-itera-400: #7d8cf5;
-  --color-itera-500: #5468ea;
-  --color-itera-600: #2f52e0;
-  --color-itera-700: #2440c4;
-  --color-itera-800: #22369e;
-  --color-itera-900: #21337d;
-  --color-itera-950: #171f4b;
+  /* ── Accent: graphite. The theme carries no colour of its own —
+     colour is reserved for the four status meanings. ───────────── */
+  --color-itera-50:  #f4f4f3;
+  --color-itera-100: #e8e8e6;
+  --color-itera-200: #d5d5d2;
+  --color-itera-300: #b5b5b1;
+  --color-itera-400: #7c7c78;
+  --color-itera-500: #474744;
+  --color-itera-600: #2b2b29;
+  --color-itera-700: #20201f;
+  --color-itera-800: #1a1a19;
+  --color-itera-900: #141413;
+  --color-itera-950: #0d0d0c;
 
-  /* ── Ink: near-black navy for text and dark surfaces ───── */
-  --color-ink-50:  #f6f7f9;
-  --color-ink-100: #eceef2;
-  --color-ink-200: #d5dae3;
-  --color-ink-300: #b0b9c9;
-  --color-ink-400: #8492a9;
-  --color-ink-500: #64748e;
-  --color-ink-600: #4e5c75;
-  --color-ink-700: #404b5f;
-  --color-ink-800: #384051;
-  --color-ink-900: #1b2130;
-  --color-ink-950: #0e1420;
+  /* ── Ink: neutral greys for text and surfaces ─────────────────── */
+  --color-ink-50:  #f6f6f5;
+  --color-ink-100: #ededeb;
+  --color-ink-200: #dcdcd9;
+  --color-ink-300: #bfbfbb;
+  --color-ink-400: #8f8f8a;
+  --color-ink-500: #676763;
+  --color-ink-600: #52524e;
+  --color-ink-700: #41413e;
+  --color-ink-800: #31312f;
+  --color-ink-900: #222221;
+  --color-ink-950: #141413;
 
-  /* ── Warm paper canvas ─────────────────────────────────── */
-  --color-canvas:      #f8f8f6;
-  --color-canvas-deep: #f1f1ee;
+  /* ── Sidebar and page: a dull, greyish white ──────────────────── */
+  --color-cream-50:  #f7f7f5;
+  --color-cream-100: #efefec;
+  --color-cream-200: #e3e3df;
+  --color-cream-300: #d3d3ce;
+  --color-cream-ink: #262624;
+
+  --color-canvas:      #f9f9f8;
+  --color-canvas-deep: #f1f1ef;
   --color-surface:     #ffffff;
-  --color-hairline:    #e7e7e2;
-  --color-hairline-strong: #d9d9d2;
+  --color-hairline:    #e6e6e3;
+  --color-hairline-strong: #d6d6d2;
 
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-display), Georgia, serif;
+  --font-display: var(--font-instrument), Georgia, serif;
+  --font-serif: var(--font-newsreader), Georgia, "Times New Roman", serif;
 
   /* ── Layered, low-spread shadows ───────────────────────── */
   --shadow-xs:    0 1px 2px 0 rgb(14 20 32 / 0.04);
@@ -223,10 +231,10 @@
 /* Briefly rings the item a checklist button sent the agent to, so the eye
    lands on it immediately after the jump. */
 @keyframes focus-flash {
-  0%   { box-shadow: 0 0 0 0 rgb(47 82 224 / 0); }
-  15%  { box-shadow: 0 0 0 4px rgb(47 82 224 / 0.35); }
-  70%  { box-shadow: 0 0 0 4px rgb(47 82 224 / 0.25); }
-  100% { box-shadow: 0 0 0 0 rgb(47 82 224 / 0); }
+  0%   { box-shadow: 0 0 0 0 rgb(20 20 19 / 0); }
+  15%  { box-shadow: 0 0 0 4px rgb(20 20 19 / 0.35); }
+  70%  { box-shadow: 0 0 0 4px rgb(20 20 19 / 0.25); }
+  100% { box-shadow: 0 0 0 0 rgb(20 20 19 / 0); }
 }
 @layer utilities {
   .focus-flash {

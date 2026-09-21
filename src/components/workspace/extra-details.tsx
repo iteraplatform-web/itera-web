@@ -109,7 +109,7 @@ export function ExtraDetails({ file }: { file: TransactionFile }) {
                 <p className="text-[13px] text-ink-500">
                   {TYPE_LABELS[f.type]}
                   {f.source === "import" && (
-                    <span className="ml-1.5 inline-flex items-center gap-1 text-violet-700">
+                    <span className="ml-1.5 inline-flex items-center gap-1 text-ink-700">
                       <Sparkles className="h-3 w-3" />
                       from spreadsheet
                     </span>

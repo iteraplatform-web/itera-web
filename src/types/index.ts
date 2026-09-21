@@ -486,6 +486,33 @@ export interface TransactionFile {
   reminders: Reminder[];
   /** Date the contract was executed; the option period and earnest money run from it. */
   contractDate?: string;
+  /** The client's own sign-in to the portal. Created as soon as the file has an email. */
+  portalAccess?: PortalAccess;
+}
+
+/**
+ * What the client can see is the agent's choice — the roadmap's "client view
+ * management". Everything defaults on except money estimates, which some
+ * agents prefer to walk through in person.
+ */
+export interface PortalVisibility {
+  progress: boolean;
+  documents: boolean;
+  property: boolean;
+  showingFeedback: boolean;
+  money: boolean;
+}
+
+export interface PortalAccess {
+  email: string;
+  /** Demo only: shown to the agent so the portal can be tested. A real build
+   *  sends a sign-in link and never stores or displays a password. */
+  password: string;
+  enabled: boolean;
+  createdAt: string;
+  invitedAt?: string;
+  lastSignInAt?: string;
+  visibility: PortalVisibility;
 }
 
 export interface Notification {

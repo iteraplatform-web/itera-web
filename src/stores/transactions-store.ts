@@ -58,7 +58,8 @@ import type {
   UrgentItem,
   WorkspaceSection,
 } from "@/types";
-import type { CustomField, Message, Note, Photo, Reminder } from "@/types";
+import type { CustomField, Message, Note, Photo, PortalVisibility, Reminder } from "@/types";
+import { createPortalAccess, makeTempPassword } from "@/lib/client/access";
 
 interface TransactionsState {
   files: TransactionFile[];
@@ -128,6 +129,10 @@ interface TransactionsState {
     flags: Partial<Pick<IntakeAnswers, "isReferral" | "isRelocation" | "builtBefore1978" | "referralPercentage" | "referralSource">>
   ) => void;
   importFiles: (rows: ImportedFile[]) => string[];
+  resetPortalPassword: (fileId: string) => void;
+  setPortalEnabled: (fileId: string, enabled: boolean) => void;
+  setPortalVisibility: (fileId: string, updates: Partial<PortalVisibility>) => void;
+  recordClientSignIn: (fileId: string) => void;
   addDocument: (fileId: string, name: string, category: TransactionFile["documents"][number]["category"]) => void;
   completeIntake: (fileId: string, answers: IntakeAnswers) => void;
 
@@ -496,6 +501,7 @@ export const useTransactionsStore = create<TransactionsState>()(
           });
           f.updatedAt = new Date().toISOString();
           emailTicked = runAutomation(f, ON_EMAIL_SENT[templateId] ?? [], `${template.name} sent`, actor);
+          if (templateId === "portal_invite" && f.portalAccess) f.portalAccess.invitedAt = new Date().toISOString();
         });
 
         toast.info("Email sent", `${template.name} sent to ${file.clientName}`);
@@ -959,6 +965,49 @@ export const useTransactionsStore = create<TransactionsState>()(
         if (added.length) toast.success("Checklist updated", `Added: ${added.join(", ")}`);
         else if (removed.length) toast.info("Checklist updated", `Removed: ${removed.join(", ")}`);
         else toast.success("Saved", "Intake answers updated");
+      },
+
+      resetPortalPassword: (fileId) => {
+        let pw = "";
+        set((s) => {
+          const f = s.files.find((x) => x.id === fileId);
+          if (!f) return;
+          if (!f.portalAccess) f.portalAccess = createPortalAccess(f.email);
+          if (!f.portalAccess) return;
+          pw = makeTempPassword();
+          f.portalAccess.password = pw;
+          pushWorkActivity(f, "profile_updated", "Client portal password reset", "Demo Agent");
+        });
+        if (pw) toast.success("New password created", `The old one no longer works. New password: ${pw}`);
+      },
+
+      setPortalEnabled: (fileId, enabled) => {
+        set((s) => {
+          const f = s.files.find((x) => x.id === fileId);
+          if (!f) return;
+          if (!f.portalAccess) f.portalAccess = createPortalAccess(f.email);
+          if (!f.portalAccess) return;
+          f.portalAccess.enabled = enabled;
+          pushWorkActivity(f, "profile_updated", `Client portal access ${enabled ? "turned on" : "turned off"}`, "Demo Agent");
+        });
+        toast.info(enabled ? "Portal access on" : "Portal access off", enabled ? "The client can sign in" : "The client can no longer sign in");
+      },
+
+      setPortalVisibility: (fileId, updates) => {
+        set((s) => {
+          const f = s.files.find((x) => x.id === fileId);
+          if (!f?.portalAccess) return;
+          Object.assign(f.portalAccess.visibility, updates);
+          f.updatedAt = new Date().toISOString();
+        });
+      },
+
+      recordClientSignIn: (fileId) => {
+        set((s) => {
+          const f = s.files.find((x) => x.id === fileId);
+          if (!f?.portalAccess) return;
+          f.portalAccess.lastSignInAt = new Date().toISOString();
+        });
       },
 
       importFiles: (rows) => {

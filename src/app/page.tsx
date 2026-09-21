@@ -21,7 +21,7 @@ export default function LandingPage() {
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
           <IteraLogo />
           <div className="flex items-center gap-2">
-            <Link href="/client">
+            <Link href="/client/login">
               <Button variant="ghost" size="sm">
                 Client view
               </Button>
@@ -43,7 +43,7 @@ export default function LandingPage() {
             className="pointer-events-none absolute -top-40 left-1/2 h-[420px] w-[820px] -translate-x-1/2 rounded-full opacity-50 blur-3xl"
             style={{
               background:
-                "radial-gradient(closest-side, rgba(47,82,224,0.16), transparent)",
+                "radial-gradient(closest-side, rgba(20,20,19,0.06), transparent)",
             }}
           />
 
@@ -77,7 +77,7 @@ export default function LandingPage() {
                     <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
-                <Link href="/client" className="w-full sm:w-auto">
+                <Link href="/client/login" className="w-full sm:w-auto">
                   <Button size="lg" variant="secondary" className="w-full sm:w-auto">
                     <Eye className="h-4 w-4" />
                     See the client side
@@ -193,7 +193,7 @@ export default function LandingPage() {
                   Open both views side by side in this demonstration — complete a
                   task on the agent side and watch the client side update.
                 </p>
-                <Link href="/client" className="mt-7 inline-block">
+                <Link href="/client/login" className="mt-7 inline-block">
                   <Button variant="secondary">
                     <Eye className="h-4 w-4" />
                     Open the client view

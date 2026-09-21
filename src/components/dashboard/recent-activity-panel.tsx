@@ -17,17 +17,17 @@ import { cn } from "@/lib/utils/cn";
 const TYPE_STYLE: Record<string, { icon: React.ElementType; tone: string }> = {
   task_completed: { icon: CheckCircle2, tone: "bg-emerald-50 text-emerald-600" },
   status_change: { icon: ArrowRightLeft, tone: "bg-itera-50 text-itera-600" },
-  document_received: { icon: FileText, tone: "bg-sky-50 text-sky-600" },
-  message_sent: { icon: MessageSquare, tone: "bg-violet-50 text-violet-600" },
+  document_received: { icon: FileText, tone: "bg-ink-100 text-ink-600" },
+  message_sent: { icon: MessageSquare, tone: "bg-ink-100 text-ink-600" },
   note_added: { icon: StickyNote, tone: "bg-amber-50 text-amber-600" },
   cma_updated: { icon: CheckCircle2, tone: "bg-itera-50 text-itera-600" },
-  listing_updated: { icon: FileText, tone: "bg-sky-50 text-sky-600" },
+  listing_updated: { icon: FileText, tone: "bg-ink-100 text-ink-600" },
   showing_logged: { icon: History, tone: "bg-amber-50 text-amber-600" },
-  marketing_updated: { icon: MessageSquare, tone: "bg-violet-50 text-violet-600" },
+  marketing_updated: { icon: MessageSquare, tone: "bg-ink-100 text-ink-600" },
   milestone_updated: { icon: CheckCircle2, tone: "bg-emerald-50 text-emerald-600" },
   profile_updated: { icon: StickyNote, tone: "bg-ink-100 text-ink-600" },
   prep_updated: { icon: FileText, tone: "bg-amber-50 text-amber-600" },
-  media_updated: { icon: FileText, tone: "bg-sky-50 text-sky-600" },
+  media_updated: { icon: FileText, tone: "bg-ink-100 text-ink-600" },
   agreement_updated: { icon: FileText, tone: "bg-itera-50 text-itera-600" },
 };
 

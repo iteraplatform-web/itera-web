@@ -2,6 +2,7 @@ import { v4 as uuid } from "uuid";
 import { addDays, format } from "date-fns";
 import { createDefaultWorkFields } from "@/lib/work/defaults";
 import { withTaskAction } from "@/lib/checklist/rules";
+import { createPortalAccess } from "@/lib/client/access";
 import type {
   ChecklistPhase,
   ChecklistTask,
@@ -803,6 +804,22 @@ export function generateDocuments(answers: IntakeAnswers): Document[] {
 
 export const EMAIL_TEMPLATES: EmailTemplate[] = [
   {
+    id: "portal_invite",
+    name: "Client Portal Invitation",
+    subject: "Your ITERA portal for {{propertyAddress}}",
+    body: `Hi {{clientName}},
+
+You now have your own portal where you can follow {{propertyAddress}} from start to finish — what's done, what's next, and anything I need from you.
+
+Sign in at itera.app/client with this email address: {{portalEmail}}
+Your temporary password will come in a separate text message.
+
+You can also message me there any time.
+
+{{agentName}}
+{{brokerage}}`,
+  },
+  {
     id: "welcome",
     name: "Welcome & Introduction",
     subject: "Welcome — let's get started on {{propertyAddress}}",
@@ -961,6 +978,8 @@ export function createTransactionFromIntake(
       referralPercentage: answers.referralPercentage,
     },
     ...createDefaultWorkFields(answers),
+    // The client's email is what creates their portal access (scope doc).
+    portalAccess: createPortalAccess(answers.email),
     ...overrides,
   };
 }
@@ -991,6 +1010,7 @@ export function interpolateTemplate(
 
   return template
     .replace(/\{\{clientName\}\}/g, file.clientName)
+    .replace(/\{\{portalEmail\}\}/g, file.portalAccess?.email ?? file.email)
     .replace(/\{\{propertyAddress\}\}/g, file.propertyAddress)
     .replace(/\{\{price\}\}/g, formatMoney(file.listPrice))
     .replace(/\{\{closingDate\}\}/g, file.closingDate ? format(new Date(file.closingDate), "EEEE, MMMM d") : "a date to be confirmed")

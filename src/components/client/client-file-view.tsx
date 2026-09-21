@@ -10,7 +10,7 @@ import { useBroadcastEvents, useTransactionsStore } from "@/stores";
 import { useHasHydrated } from "@/hooks/use-hydrated";
 import { ensureWorkFields } from "@/lib/work/defaults";
 import { IteraMark } from "@/components/marketing/logo";
-import { CLIENT_TABS, ClientShell, type ClientTab } from "@/components/client/portal/client-shell";
+import { ClientShell, visibleClientTabs, type ClientTab } from "@/components/client/portal/client-shell";
 import { ClientHome } from "@/components/client/portal/client-home";
 import { ClientDocuments, ClientHelp, ClientMessages, ClientProgress } from "@/components/client/portal/client-sections";
 import { ClientMoney, ClientProperty } from "@/components/client/portal/client-property-money";
@@ -30,13 +30,16 @@ function readSeen(id: string): number {
 export function ClientFileView({ fileId }: { fileId: string }) {
   const params = useSearchParams();
   const tabParam = params.get("tab") as ClientTab | null;
-  const tab: ClientTab = tabParam && CLIENT_TABS.includes(tabParam) ? tabParam : "home";
   const focus = params.get("focus") ?? undefined;
 
   const files = useTransactionsStore((s) => s.files);
   const hydrated = useHasHydrated();
   const raw = useMemo(() => getFileById(files, fileId), [files, fileId]);
   const file = useMemo(() => (raw ? ensureWorkFields(raw) : undefined), [raw]);
+
+  // A tab the agent has hidden falls back to Home.
+  const allowed = file ? visibleClientTabs(file) : [];
+  const tab: ClientTab = tabParam && (allowed.includes(tabParam) || tabParam === "help") ? tabParam : "home";
 
   const [alert, setAlert] = useState<BroadcastEvent | null>(null);
   const [seenAt, setSeenAt] = useState(0);
@@ -75,7 +78,7 @@ export function ClientFileView({ fileId }: { fileId: string }) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-canvas px-6 text-center">
         <p className="text-[18px] font-semibold text-ink-900">We couldn&apos;t find that transaction</p>
-        <Link href="/client" className="text-[16px] font-semibold text-itera-600">
+        <Link href="/client/login" className="text-[16px] font-semibold text-itera-600">
           See your transactions
         </Link>
       </div>

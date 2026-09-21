@@ -20,6 +20,7 @@ import { MarketingSection } from "@/components/workspace/marketing-section";
 import { MilestonesSection } from "@/components/workspace/milestones-section";
 import { AnalyticsSection } from "@/components/workspace/analytics-section";
 import { LoadingScreen } from "@/components/layout/auth-guard";
+import { NewFileWelcome } from "@/components/workspace/new-file-welcome";
 import { useTransactionsStore } from "@/stores";
 import { getFileById } from "@/lib/selectors/transactions";
 import { ensureWorkFields } from "@/lib/work/defaults";
@@ -43,6 +44,7 @@ function FileContent({ id }: { id: string }) {
   const params = useSearchParams();
   const tabParam = params.get("tab");
   const focus = params.get("focus") ?? undefined;
+  const welcome = params.get("welcome") === "1";
   const section: WorkspaceSection =
     tabParam && tabParam in SECTION_LABELS ? (tabParam as WorkspaceSection) : "overview";
 
@@ -54,13 +56,14 @@ function FileContent({ id }: { id: string }) {
 
   return (
     <WorkspaceShell id={id} section={section}>
+      {file && welcome && <NewFileWelcome file={file} />}
       {file && (
         <div key={section} className="animate-fade-in">
           {section === "overview" && <OverviewSection file={file} />}
           {section === "checklist" && <ChecklistSection file={file} focus={focus} />}
           {section === "client_profile" && <ClientProfileSection file={file} />}
-          {section === "pricing" && <PricingSection file={file} />}
-          {section === "listing_details" && <ListingDetailsSection file={file} />}
+          {section === "pricing" && <PricingSection file={file} full />}
+          {section === "listing_details" && <ListingDetailsSection file={file} full />}
           {section === "property_work" && <PropertyWorkSection file={file} />}
           {section === "photos" && <PhotosSection file={file} />}
           {section === "showings" && <ShowingsSection file={file} />}
@@ -70,7 +73,7 @@ function FileContent({ id }: { id: string }) {
           {section === "financials" && <FinancialsSection file={file} focus={focus} />}
           {section === "milestones" && <MilestonesSection file={file} />}
           {section === "notes" && <NotesSection file={file} />}
-          {section === "analytics" && <AnalyticsSection file={file} />}
+          {section === "analytics" && <AnalyticsSection file={file} full />}
           {section === "client_view" && <ClientViewPreview file={file} />}
         </div>
       )}

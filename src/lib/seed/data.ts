@@ -12,6 +12,7 @@ import {
   enrichOakwood,
   enrichShoalCreek,
 } from "@/lib/seed/work-enrichment";
+import { createPortalAccess } from "@/lib/client/access";
 import type {
   IntakeAnswers,
   Message,
@@ -59,6 +60,8 @@ function seedFile(answers: IntakeAnswers, opts: SeedOptions): TransactionFile {
 
   let file = createTransactionFromIntake(answers);
   file = ensureWorkFields(file);
+  // Sample clients get the same login in every browser, so a demo script can rely on it.
+  file.portalAccess = createPortalAccess(answers.email, true);
   file.status = opts.status;
   file.createdAt = startDate.toISOString();
   file.listPrice = opts.listPrice;

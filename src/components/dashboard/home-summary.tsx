@@ -7,11 +7,6 @@ import { getMostUrgentItem } from "@/lib/selectors/transactions";
 import { cn } from "@/lib/utils/cn";
 import type { PortfolioStats, TransactionFile } from "@/types";
 
-function formatPipeline(value: number): string {
-  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `$${Math.round(value / 1_000)}K`;
-  return `$${value}`;
-}
 
 /**
  * Everything the old banner and stat cards said, in one compact row — so the
@@ -20,11 +15,9 @@ function formatPipeline(value: number): string {
 export function HomeSummary({
   files,
   stats,
-  pipelineValue,
 }: {
   files: TransactionFile[];
   stats: PortfolioStats;
-  pipelineValue: number;
 }) {
   const urgent = useMemo(() => getMostUrgentItem(files), [files]);
   const hot = urgent && (urgent.isOverdue || urgent.daysRemaining <= 3);
@@ -33,11 +26,11 @@ export function HomeSummary({
     { label: "Open files", value: String(stats.openFiles) },
     { label: "Closing this month", value: String(stats.closingsThisMonth) },
     { label: "Overdue tasks", value: String(stats.overdueCount), alert: stats.overdueCount > 0 },
-    { label: "Pipeline", value: formatPipeline(pipelineValue) },
   ];
 
+
   return (
-    <div className="grid gap-3 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,2fr)]">
+    <div className="grid gap-3 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
       {urgent ? (
         <Link
           href={`/files/${urgent.fileId}?tab=checklist`}
@@ -74,7 +67,7 @@ export function HomeSummary({
         </div>
       )}
 
-      <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-hairline bg-hairline sm:grid-cols-4">
+      <dl className="grid grid-cols-3 gap-px overflow-hidden rounded-2xl border border-hairline bg-hairline">
         {metrics.map((m) => (
           <div key={m.label} className={cn("bg-surface px-4 py-3", m.alert && "bg-red-50")}>
             <dt className="text-[13px] text-ink-500">{m.label}</dt>

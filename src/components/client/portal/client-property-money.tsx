@@ -87,6 +87,7 @@ function SellerHome({ file }: { file: TransactionFile }) {
         )}
 
         <div className="grid gap-6 lg:grid-cols-2">
+          {file.portalAccess?.visibility.showingFeedback !== false && (
           <PCard title="What buyers are saying" icon={MessageSquareQuote}>
             {appts.length === 0 ? (
               <p className="text-[16px] text-ink-600">Feedback from showings will appear here.</p>
@@ -115,6 +116,7 @@ function SellerHome({ file }: { file: TransactionFile }) {
               </>
             )}
           </PCard>
+          )}
 
           <PCard title="Open houses" icon={CalendarDays}>
             {openHouses.length === 0 ? (

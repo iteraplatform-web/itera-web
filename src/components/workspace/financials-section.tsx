@@ -139,7 +139,7 @@ export function FinancialsSection({ file, focus }: { file: TransactionFile; focu
               <PayRow
                 label={
                   <span className="flex items-center gap-1.5">
-                    <Gift className="h-4 w-4 text-violet-600" />
+                    <Gift className="h-4 w-4 text-ink-600" />
                     Referral fee — {payout.referralPct}% to {file.referralSource || "referring broker"}
                   </span>
                 }

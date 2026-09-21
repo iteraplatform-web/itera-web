@@ -2,12 +2,9 @@ import { cn } from "@/lib/utils/cn";
 
 /** Initials avatar — deterministic color from the name so it stays stable. */
 const AVATAR_TONES = [
-  "bg-itera-100 text-itera-700",
-  "bg-emerald-100 text-emerald-700",
-  "bg-amber-100 text-amber-700",
-  "bg-violet-100 text-violet-700",
-  "bg-teal-100 text-teal-700",
-  "bg-rose-100 text-rose-700",
+  // Neutral only — colour in this product always means a status.
+  "bg-ink-100 text-ink-700",
+  "bg-ink-200 text-ink-800",
 ];
 
 export function Avatar({
