@@ -242,11 +242,11 @@ export function FileActions({
   const portalEmail = file.portalAccess?.email ?? file.email;
   const selectClass =
     variant === "sidebar"
-      ? "h-10 w-full cursor-pointer rounded-[10px] border-0 bg-white/80 px-3 text-[14px] font-semibold text-cream-ink ring-1 ring-inset ring-cream-300/80 focus:outline-none focus:ring-2 focus:ring-itera-500"
+      ? "h-9 min-w-0 flex-1 cursor-pointer rounded-lg border-0 bg-white/70 px-2.5 text-[13px] font-medium text-cream-ink ring-1 ring-inset ring-cream-300/70 focus:outline-none focus:ring-2 focus:ring-itera-500"
       : "h-10 cursor-pointer rounded-[10px] border-0 bg-canvas px-3 text-[14px] font-semibold text-ink-800 ring-1 ring-inset ring-hairline-strong focus:outline-none focus:ring-2 focus:ring-itera-500";
 
   return (
-    <div className={cn("flex gap-2", variant === "sidebar" ? "flex-col" : "flex-wrap items-center")}>
+    <div className={cn("flex gap-2", variant === "sidebar" ? "items-center" : "flex-wrap items-center")}>
       <label className="sr-only" htmlFor={`status-${variant}`}>
         File status
       </label>
@@ -265,15 +265,16 @@ export function FileActions({
       <Link
         href={`/client/login?email=${encodeURIComponent(portalEmail)}`}
         target="_blank"
+        title="Open client view"
         className={cn(
-          "inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-[10px] px-3.5 text-[14px] font-semibold transition-colors",
+          "inline-flex shrink-0 items-center justify-center gap-1.5 font-medium transition-colors",
           variant === "sidebar"
-            ? "w-full bg-white/80 text-cream-ink ring-1 ring-inset ring-cream-300/80 hover:bg-white"
-            : "bg-surface text-ink-700 ring-1 ring-inset ring-hairline-strong hover:bg-canvas hover:text-ink-950"
+            ? "h-9 rounded-lg px-2.5 text-[13px] text-cream-ink/80 ring-1 ring-inset ring-cream-300/70 hover:bg-white/80 hover:text-cream-ink"
+            : "h-10 rounded-[10px] bg-surface px-3.5 text-[14px] font-semibold text-ink-700 ring-1 ring-inset ring-hairline-strong hover:bg-canvas hover:text-ink-950"
         )}
       >
-        <ExternalLink className="h-4 w-4" />
-        Client view
+        <ExternalLink className="h-3.5 w-3.5" />
+        {variant === "sidebar" ? "Client" : "Client view"}
       </Link>
     </div>
   );

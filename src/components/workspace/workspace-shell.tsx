@@ -144,12 +144,6 @@ export function WorkspaceShell({
       <div className="mx-auto max-w-[1280px]">
         {/* Sections live in the drawer on small screens; keep them one swipe away */}
         <div className="mb-4 space-y-3 lg:hidden">
-          <Link href="/dashboard">
-            <Button variant="secondary" size="sm">
-              <ArrowLeft className="h-4 w-4" />
-              Back to Dashboard
-            </Button>
-          </Link>
           <FileActions file={file} onStatusChange={handleStatusChange} variant="rail" />
           <FileSectionNav file={file} active={section} variant="rail" />
         </div>

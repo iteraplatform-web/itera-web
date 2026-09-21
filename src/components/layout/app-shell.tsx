@@ -30,7 +30,7 @@ import { getTotalPipelineValue } from "@/lib/selectors/file-metrics";
 import { calculatePayout, money } from "@/lib/work/payout";
 import { STATUS_THEME } from "@/lib/utils/status-theme";
 import { cn } from "@/lib/utils/cn";
-import { STATUS_LABELS, type TransactionFile, type TransactionStatus, type WorkspaceSection } from "@/types";
+import { type TransactionFile, type TransactionStatus, type WorkspaceSection } from "@/types";
 
 export interface Crumb {
   label: string;
@@ -95,7 +95,11 @@ export function AppShell({
         {/* The work sits on a white panel, lifted off the cream */}
         <div className="lg:py-3 lg:pl-[288px] lg:pr-3">
           <div className="min-h-screen bg-canvas lg:min-h-[calc(100vh-24px)] lg:rounded-[28px] lg:shadow-[0_1px_3px_rgba(20,20,19,0.08),0_12px_32px_-12px_rgba(20,20,19,0.14)] lg:ring-1 lg:ring-cream-300/60">
-            <TopBar crumbs={crumbs} onOpenMenu={() => setDrawerOpen(true)} />
+            <TopBar
+              crumbs={crumbs}
+              onOpenMenu={() => setDrawerOpen(true)}
+              backHref={file && activeSection ? "/dashboard" : undefined}
+            />
             <main className="px-4 pb-16 pt-6 sm:px-6 lg:px-10">{children}</main>
           </div>
         </div>
@@ -147,30 +151,20 @@ function SidebarContent({
 
         {inFile && file ? (
           <>
-            <Link
-              href="/dashboard"
-              onClick={onNavigate}
-              className="mt-7 inline-flex items-center gap-2 rounded-full bg-white/70 px-3.5 py-2 text-[15px] font-semibold text-cream-ink shadow-sm ring-1 ring-cream-300/70 hover:bg-white"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Dashboard
-            </Link>
-
-            <h2 className="mt-5 font-serif text-[27px] font-medium leading-[1.15] tracking-[-0.01em] text-cream-ink">
+            <h2 className="mt-6 font-serif text-[22px] font-medium leading-snug tracking-[-0.01em] text-cream-ink">
               {(file.propertyAddress || file.clientName).split(",")[0]}
             </h2>
-            <p className="mt-1.5 text-[15px] leading-relaxed text-cream-ink/70">
+            <p className="mt-1 truncate text-[14px] text-cream-ink/65">
               {file.clientName}
-              <br />
-              {file.side === "listing" ? "Listing" : "Buyer"} ·{" "}
-              <span className={cn("font-semibold", STATUS_THEME[file.status].text)}>{STATUS_LABELS[file.status]}</span>
+              <span className="text-cream-ink/35"> · </span>
+              {file.side === "listing" ? "Listing" : "Buyer"}
             </p>
 
-            <div className="mt-5">
+            <div className="mt-3">
               <FileActions file={file} onStatusChange={handleStatusChange} variant="sidebar" />
             </div>
 
-            <div className="mt-6">
+            <div className="mt-4">
               <FileSectionNav file={file} active={activeSection!} onNavigate={onNavigate} />
             </div>
           </>
@@ -255,9 +249,9 @@ function SidebarContent({
 
 function Figure({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-baseline justify-between border-t border-cream-300/70 py-2.5">
-      <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-cream-ink/60">{label}</span>
-      <span className="tnum font-serif text-[20px] font-medium text-cream-ink">{value}</span>
+    <div className="flex items-baseline justify-between border-t border-cream-300/70 py-2">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-cream-ink/55">{label}</span>
+      <span className="tnum text-[15px] font-semibold text-cream-ink">{value}</span>
     </div>
   );
 }
@@ -294,15 +288,23 @@ function FileFigures({ file }: { file: TransactionFile }) {
   const payout = calculatePayout(file, user);
   const done = file.checklist.filter((t) => t.status === "completed").length;
   return (
-    <div>
-      <Headline label="Your expected take-home" value={money(payout.net)} />
+    <div className="space-y-0">
+      <Figure label="Take-home" value={money(payout.net)} />
       <Figure label="Closing" value={file.closingDate ? format(parseISO(file.closingDate), "MMM d") : "Not set"} />
-      <Figure label="Checklist" value={`${done} of ${file.checklist.length}`} />
+      <Figure label="Checklist" value={`${done}/${file.checklist.length}`} />
     </div>
   );
 }
 
-function TopBar({ crumbs, onOpenMenu }: { crumbs?: Crumb[]; onOpenMenu: () => void }) {
+function TopBar({
+  crumbs,
+  onOpenMenu,
+  backHref,
+}: {
+  crumbs?: Crumb[];
+  onOpenMenu: () => void;
+  backHref?: string;
+}) {
   const unreadCount = useNotificationsStore((s) => s.notifications.filter((n) => !n.read).length);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -327,8 +329,19 @@ function TopBar({ crumbs, onOpenMenu }: { crumbs?: Crumb[]; onOpenMenu: () => vo
           Menu
         </button>
 
+        {backHref && (
+          <Link
+            href={backHref}
+            className="inline-flex h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-[14px] font-semibold text-ink-800 ring-1 ring-inset ring-hairline-strong transition-colors hover:bg-ink-50"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span className="hidden sm:inline">Back to Dashboard</span>
+            <span className="sm:hidden">Back</span>
+          </Link>
+        )}
+
         {crumbs && crumbs.length > 0 && (
-          <nav aria-label="Breadcrumb" className="hidden min-w-0 items-center gap-1.5 text-[14px] sm:flex">
+          <nav aria-label="Breadcrumb" className="hidden min-w-0 items-center gap-1.5 text-[14px] md:flex">
             {crumbs.map((c, i) => (
               <span key={i} className="flex min-w-0 items-center gap-1.5">
                 {i > 0 && <ChevronRight className="h-4 w-4 shrink-0 text-ink-400" />}

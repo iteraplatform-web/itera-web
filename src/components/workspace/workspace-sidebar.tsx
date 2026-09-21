@@ -170,30 +170,28 @@ export function FileSectionNav({
             className={cn(
               variant === "rail"
                 ? "flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-[15px] font-semibold"
-                : "flex min-h-[44px] items-center gap-3 rounded-xl px-3.5 py-2 text-[16px] transition-colors",
+                : "flex min-h-[38px] items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[14px] transition-colors",
               variant === "rail"
                 ? isActive
                   ? "bg-ink-950 text-white shadow-sm"
                   : "bg-surface text-ink-700 ring-1 ring-inset ring-hairline"
                 : isActive
                 ? "bg-cream-200/80 font-semibold text-cream-ink"
-                : "font-medium text-cream-ink/80 hover:bg-cream-200/45 hover:text-cream-ink"
+                : "font-medium text-cream-ink/75 hover:bg-cream-200/45 hover:text-cream-ink"
             )}
           >
             <Icon
-              className={cn("h-5 w-5 shrink-0", variant === "rail" && (isActive ? "text-white" : "text-ink-500"))}
+              className={cn("h-[18px] w-[18px] shrink-0", variant === "rail" && (isActive ? "text-white" : "text-ink-500"))}
               strokeWidth={1.75}
             />
             <span className="min-w-0 flex-1 truncate">{label}</span>
             {badge && (
               <span
                 className={cn(
-                  "tnum shrink-0 rounded-full px-2 py-0.5 text-[13px] font-semibold",
+                  "tnum shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-semibold",
                   variant === "rail" && isActive
                     ? "bg-white/20 text-white"
-                    : badge.tone === "red"
-                    ? "bg-red-100 text-red-800"
-                    : "bg-amber-100 text-amber-900"
+                    : "bg-cream-ink/10 text-cream-ink/75"
                 )}
               >
                 {badge.text}
