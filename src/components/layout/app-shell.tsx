@@ -23,13 +23,14 @@ import { TopoPattern } from "@/components/layout/topo-pattern";
 import { IteraLogo } from "@/components/marketing/logo";
 import { NotificationsPanel } from "@/components/dashboard/notifications-panel";
 import { FileSectionNav } from "@/components/workspace/workspace-sidebar";
+import { FileActions } from "@/components/workspace/file-header";
 import { useAuthStore, useNotificationsStore, useTransactionsStore } from "@/stores";
 import { getPortfolioStats } from "@/lib/selectors/transactions";
 import { getTotalPipelineValue } from "@/lib/selectors/file-metrics";
 import { calculatePayout, money } from "@/lib/work/payout";
 import { STATUS_THEME } from "@/lib/utils/status-theme";
 import { cn } from "@/lib/utils/cn";
-import { STATUS_LABELS, type TransactionFile, type WorkspaceSection } from "@/types";
+import { STATUS_LABELS, type TransactionFile, type TransactionStatus, type WorkspaceSection } from "@/types";
 
 export interface Crumb {
   label: string;
@@ -117,8 +118,23 @@ function SidebarContent({
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const files = useTransactionsStore((s) => s.files);
+  const updateFileStatus = useTransactionsStore((s) => s.updateFileStatus);
+  const addNotification = useNotificationsStore((s) => s.addNotification);
   const firstName = user?.name?.split(" ")[0] ?? "there";
   const inFile = Boolean(file && activeSection);
+
+  const handleStatusChange = (status: TransactionStatus) => {
+    if (!file || file.status === status) return;
+    const prevLabel = STATUS_THEME[file.status].label;
+    const newLabel = STATUS_THEME[status].label;
+    updateFileStatus(file.id, status);
+    addNotification({
+      fileId: file.id,
+      title: "Status changed",
+      message: `${file.propertyAddress}: ${prevLabel} → ${newLabel}`,
+      type: "info",
+    });
+  };
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden">
@@ -149,6 +165,10 @@ function SidebarContent({
               {file.side === "listing" ? "Listing" : "Buyer"} ·{" "}
               <span className={cn("font-semibold", STATUS_THEME[file.status].text)}>{STATUS_LABELS[file.status]}</span>
             </p>
+
+            <div className="mt-5">
+              <FileActions file={file} onStatusChange={handleStatusChange} variant="sidebar" />
+            </div>
 
             <div className="mt-6">
               <FileSectionNav file={file} active={activeSection!} onNavigate={onNavigate} />

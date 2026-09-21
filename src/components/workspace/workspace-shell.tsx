@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
-import { FileHeaderCompact } from "@/components/workspace/file-header";
+import { FileActions } from "@/components/workspace/file-header";
 import { FileSectionNav, navFor, SubTabs } from "@/components/workspace/workspace-sidebar";
 import { QuickLeadPrompt } from "@/components/workspace/quick-lead-prompt";
 import { Button } from "@/components/ui/button";
@@ -77,8 +77,8 @@ export const SECTION_META: Record<WorkspaceSection, { title: string; blurb: stri
     blurb: "Days on market, showings, offers, and checklist progress for this file.",
   },
   client_view: {
-    title: "What the Client Sees",
-    blurb: "Exactly what your client sees on their own phone.",
+    title: "Client Portal",
+    blurb: "Portal login, access, and what the client is allowed to see.",
   },
 };
 
@@ -150,10 +150,9 @@ export function WorkspaceShell({
               Back to Dashboard
             </Button>
           </Link>
+          <FileActions file={file} onStatusChange={handleStatusChange} variant="rail" />
           <FileSectionNav file={file} active={section} variant="rail" />
         </div>
-
-        <FileHeaderCompact file={file} onStatusChange={handleStatusChange} />
 
         {file.isQuickLead && (
           <div className="mt-5">
@@ -167,8 +166,8 @@ export function WorkspaceShell({
             <p className="mt-1 text-[16px] text-ink-600">{blurb ?? meta.blurb}</p>
           </div>
           <SubTabs file={file} active={section} />
-          {/* Overview lays out its own panels; every other section sits in one card. */}
-          {section === "overview" ? (
+          {/* Overview / portal manage their own layout; other sections sit in one card. */}
+          {section === "overview" || section === "client_view" ? (
             children
           ) : (
             <div className="rounded-2xl border border-hairline bg-surface p-5 shadow-sm sm:p-7">{children}</div>

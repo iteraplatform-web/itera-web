@@ -232,54 +232,49 @@ function Metric({
 }
 
 /**
- * One line of context for every tab except Overview: which file this is, its
- * status, and the two controls agents reach for most. Keeps the work itself
- * above the fold.
+ * Status + Client view — lives in the file sidebar (and the mobile rail).
  */
-export function FileHeaderCompact({ file, onStatusChange }: FileHeaderProps) {
-  const theme = STATUS_THEME[file.status];
+export function FileActions({
+  file,
+  onStatusChange,
+  variant = "sidebar",
+}: FileHeaderProps & { variant?: "sidebar" | "rail" }) {
+  const portalEmail = file.portalAccess?.email ?? file.email;
+  const selectClass =
+    variant === "sidebar"
+      ? "h-10 w-full cursor-pointer rounded-[10px] border-0 bg-white/80 px-3 text-[14px] font-semibold text-cream-ink ring-1 ring-inset ring-cream-300/80 focus:outline-none focus:ring-2 focus:ring-itera-500"
+      : "h-10 cursor-pointer rounded-[10px] border-0 bg-canvas px-3 text-[14px] font-semibold text-ink-800 ring-1 ring-inset ring-hairline-strong focus:outline-none focus:ring-2 focus:ring-itera-500";
+
   return (
-    <div className="relative flex flex-col gap-3 overflow-hidden rounded-2xl border border-hairline bg-surface px-5 py-4 shadow-sm sm:flex-row sm:items-center">
-      <span className={cn("absolute inset-y-0 left-0 w-1", theme.solid)} />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-[18px] font-bold tracking-[-0.02em] text-ink-950">
-          {file.propertyAddress}
-        </p>
-        <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[14px] text-ink-500">
-          <span className="font-medium text-ink-700">{file.clientName}</span>
-          {file.phone && (
-            <a href={`tel:${file.phone.replace(/[^\d+]/g, "")}`} className="hover:text-itera-700 hover:underline">
-              {file.phone}
-            </a>
-          )}
-          <span className="tnum font-semibold text-ink-800">
-            {file.listPrice > 0 ? `$${file.listPrice.toLocaleString()}` : "Price not set"}
-          </span>
-        </p>
-      </div>
-      <div className="flex shrink-0 flex-wrap items-center gap-2">
-        <label className="sr-only" htmlFor="status-compact">
-          File status
-        </label>
-        <select
-          id="status-compact"
-          value={file.status}
-          onChange={(e) => onStatusChange(e.target.value as TransactionStatus)}
-          className="h-10 cursor-pointer rounded-[10px] border-0 bg-canvas px-3 text-[14px] font-semibold text-ink-800 ring-1 ring-inset ring-hairline-strong focus:outline-none focus:ring-2 focus:ring-itera-500"
-        >
-          {Object.entries(STATUS_LABELS).map(([key, label]) => (
-            <option key={key} value={key}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <Link href={`/client/login?email=${encodeURIComponent(file.portalAccess?.email ?? file.email)}`} target="_blank">
-          <Button size="sm" variant="secondary">
-            <ExternalLink className="h-4 w-4" />
-            Client view
-          </Button>
-        </Link>
-      </div>
+    <div className={cn("flex gap-2", variant === "sidebar" ? "flex-col" : "flex-wrap items-center")}>
+      <label className="sr-only" htmlFor={`status-${variant}`}>
+        File status
+      </label>
+      <select
+        id={`status-${variant}`}
+        value={file.status}
+        onChange={(e) => onStatusChange(e.target.value as TransactionStatus)}
+        className={selectClass}
+      >
+        {Object.entries(STATUS_LABELS).map(([key, label]) => (
+          <option key={key} value={key}>
+            {label}
+          </option>
+        ))}
+      </select>
+      <Link
+        href={`/client/login?email=${encodeURIComponent(portalEmail)}`}
+        target="_blank"
+        className={cn(
+          "inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-[10px] px-3.5 text-[14px] font-semibold transition-colors",
+          variant === "sidebar"
+            ? "w-full bg-white/80 text-cream-ink ring-1 ring-inset ring-cream-300/80 hover:bg-white"
+            : "bg-surface text-ink-700 ring-1 ring-inset ring-hairline-strong hover:bg-canvas hover:text-ink-950"
+        )}
+      >
+        <ExternalLink className="h-4 w-4" />
+        Client view
+      </Link>
     </div>
   );
 }
