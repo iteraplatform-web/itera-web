@@ -10,6 +10,7 @@ import {
   Plus,
   Search,
   SlidersHorizontal,
+  Table2,
   X,
   Zap,
 } from "lucide-react";
@@ -17,6 +18,7 @@ import { AuthGuard } from "@/components/layout/auth-guard";
 import { AppShell } from "@/components/layout/app-shell";
 import { HomeSummary } from "@/components/dashboard/home-summary";
 import { FileCard } from "@/components/dashboard/file-card";
+import { TableView } from "@/components/dashboard/table-view";
 import { KanbanBoard } from "@/components/dashboard/kanban-board";
 import { CalendarView } from "@/components/dashboard/calendar-view";
 import { PortfolioStatsRow } from "@/components/dashboard/portfolio-stats-row";
@@ -139,6 +141,7 @@ function DashboardContent() {
                     onChange={setDashboardView}
                     options={[
                       { value: "cards", label: "Cards", icon: LayoutGrid },
+                      { value: "table", label: "Table", icon: Table2 },
                       { value: "kanban", label: "Board", icon: Columns3 },
                       { value: "calendar", label: "Calendar", icon: Calendar },
                     ]}
@@ -174,6 +177,7 @@ function DashboardContent() {
                   }
                 />
               ))}
+            {dashboardView === "table" && <TableView files={files} />}
             {dashboardView === "kanban" && <KanbanBoard files={files} />}
             {dashboardView === "calendar" && <CalendarView files={files} />}
 

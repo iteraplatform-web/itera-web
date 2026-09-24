@@ -11,6 +11,7 @@ import {
   Eye,
   FileSpreadsheet,
   Home,
+  ListChecks,
   LogOut,
   Menu,
   Plus,
@@ -20,12 +21,13 @@ import {
 } from "lucide-react";
 import { AuthGuard } from "@/components/layout/auth-guard";
 import { TopoPattern } from "@/components/layout/topo-pattern";
+import { QuickAddFab } from "@/components/layout/quick-add-fab";
 import { IteraLogo } from "@/components/marketing/logo";
 import { NotificationsPanel } from "@/components/dashboard/notifications-panel";
 import { FileSectionNav } from "@/components/workspace/workspace-sidebar";
 import { FileActions } from "@/components/workspace/file-header";
 import { useAuthStore, useNotificationsStore, useTransactionsStore } from "@/stores";
-import { getPortfolioStats } from "@/lib/selectors/transactions";
+import { getPortfolioActionItems, getPortfolioStats } from "@/lib/selectors/transactions";
 import { getTotalPipelineValue } from "@/lib/selectors/file-metrics";
 import { calculatePayout, money } from "@/lib/work/payout";
 import { STATUS_THEME } from "@/lib/utils/status-theme";
@@ -39,6 +41,7 @@ export interface Crumb {
 
 const MAIN_NAV = [
   { href: "/dashboard", label: "Home", icon: Home, match: (p: string) => p === "/dashboard" },
+  { href: "/tasks", label: "Tasks", icon: ListChecks, match: (p: string) => p.startsWith("/tasks") },
   { href: "/import", label: "Import Spreadsheet", icon: FileSpreadsheet, match: (p: string) => p.startsWith("/import") },
   { href: "/settings", label: "Settings", icon: Settings, match: (p: string) => p.startsWith("/settings") },
 ];
@@ -103,6 +106,8 @@ export function AppShell({
             <main className="px-4 pb-16 pt-6 sm:px-6 lg:px-10">{children}</main>
           </div>
         </div>
+
+        <QuickAddFab currentFile={file} />
       </div>
     </AuthGuard>
   );
@@ -122,6 +127,10 @@ function SidebarContent({
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const files = useTransactionsStore((s) => s.files);
+  const overdueTaskCount = useMemo(
+    () => getPortfolioActionItems(files).filter((i) => i.isOverdue).length,
+    [files]
+  );
   const updateFileStatus = useTransactionsStore((s) => s.updateFileStatus);
   const addNotification = useNotificationsStore((s) => s.addNotification);
   const firstName = user?.name?.split(" ")[0] ?? "there";
@@ -208,10 +217,16 @@ function SidebarContent({
             <nav className="mt-6 space-y-1" aria-label="Main">
               {MAIN_NAV.map((item) => {
                 const active = item.match(pathname);
+                const badge = item.href === "/tasks" && overdueTaskCount > 0 ? overdueTaskCount : null;
                 return (
                   <Link key={item.href} href={item.href} onClick={onNavigate} aria-current={active ? "page" : undefined} className={sidebarLink(active)}>
                     <item.icon className="h-5 w-5 shrink-0" strokeWidth={1.75} />
                     {item.label}
+                    {badge && (
+                      <span className="tnum ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[12px] font-bold text-white">
+                        {badge}
+                      </span>
+                    )}
                   </Link>
                 );
               })}

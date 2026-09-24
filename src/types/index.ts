@@ -34,7 +34,7 @@ export type EarnestMoneyStatus = "received" | "pending";
 
 export type NotificationType = "urgent" | "info" | "success";
 
-export type DashboardView = "cards" | "kanban" | "calendar";
+export type DashboardView = "cards" | "table" | "kanban" | "calendar";
 
 export type WorkspaceSection =
   | "overview"
@@ -559,6 +559,27 @@ export interface UrgentItem {
   taskTitle: string;
   daysRemaining: number;
   isOverdue: boolean;
+}
+
+/**
+ * One line in the cross-portfolio task list — a checklist task or a
+ * reminder, from any file, normalized so the two can sort and render
+ * together. Nothing lives here that isn't already on the file; this is a
+ * view over existing data, not a new store of truth.
+ */
+export interface PortfolioActionItem {
+  id: string;
+  kind: "task" | "reminder";
+  fileId: string;
+  fileLabel: string;
+  clientName: string;
+  title: string;
+  dueDate: string;
+  daysRemaining: number;
+  isOverdue: boolean;
+  phase?: ChecklistPhase;
+  section: WorkspaceSection;
+  focus?: string;
 }
 
 export const DEMO_CREDENTIALS = {

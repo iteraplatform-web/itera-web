@@ -1,5 +1,6 @@
 import { daysRemaining, isOverdue } from "@/lib/utils/dates";
 import type {
+  PortfolioActionItem,
   PortfolioStats,
   TransactionFile,
   TransactionStatus,
@@ -86,4 +87,54 @@ export function getMostUrgentItem(files: TransactionFile[]): UrgentItem | null {
 
 export function getFileById(files: TransactionFile[], id: string): TransactionFile | undefined {
   return files.find((f) => f.id === id);
+}
+
+/**
+ * Every open, ready-to-work checklist task and every unfinished reminder,
+ * across every open file, as one flat list sorted soonest-first. This is
+ * what the single urgent banner can only hint at one item of at a time.
+ */
+export function getPortfolioActionItems(files: TransactionFile[]): PortfolioActionItem[] {
+  const items: PortfolioActionItem[] = [];
+
+  files.forEach((f) => {
+    if (!OPEN_STATUSES.includes(f.status)) return;
+    const fileLabel = f.propertyAddress && f.propertyAddress !== "TBD" ? f.propertyAddress : f.clientName;
+
+    f.checklist.forEach((t) => {
+      if (t.status === "completed" || t.status === "blocked" || !t.dueDate) return;
+      items.push({
+        id: t.id,
+        kind: "task",
+        fileId: f.id,
+        fileLabel,
+        clientName: f.clientName,
+        title: t.title,
+        dueDate: t.dueDate,
+        daysRemaining: daysRemaining(t.dueDate),
+        isOverdue: isOverdue(t.dueDate),
+        phase: t.phase,
+        section: t.workTarget?.section ?? "checklist",
+        focus: t.workTarget?.focus ?? t.id,
+      });
+    });
+
+    (f.reminders ?? []).forEach((r) => {
+      if (r.done) return;
+      items.push({
+        id: r.id,
+        kind: "reminder",
+        fileId: f.id,
+        fileLabel,
+        clientName: f.clientName,
+        title: r.title,
+        dueDate: r.dueAt,
+        daysRemaining: daysRemaining(r.dueAt),
+        isOverdue: isOverdue(r.dueAt),
+        section: "overview",
+      });
+    });
+  });
+
+  return items.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 }
