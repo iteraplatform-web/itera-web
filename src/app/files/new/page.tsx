@@ -22,9 +22,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { CallNotesAssist } from "@/components/intake/call-notes-assist";
+import { ReferralPdfAssist } from "@/components/intake/referral-pdf-assist";
 import { BuildProgress } from "@/components/intake/build-progress";
 import { useTransactionsStore } from "@/stores";
 import { generateChecklist, generateDocuments } from "@/lib/checklist/engine";
+import type { ReferralProfile } from "@/lib/referral/form";
 import { PHASE_LABELS, type IntakeAnswers, type TransactionSide } from "@/types";
 import { cn } from "@/lib/utils/cn";
 
@@ -56,8 +58,10 @@ function NewFileContent() {
   const createFile = useTransactionsStore((s) => s.createFile);
   const createQuickLead = useTransactionsStore((s) => s.createQuickLead);
   const completeIntake = useTransactionsStore((s) => s.completeIntake);
+  const updateClientProfile = useTransactionsStore((s) => s.updateClientProfile);
 
   const [step, setStep] = useState(1);
+  const [profileDraft, setProfileDraft] = useState<ReferralProfile | null>(null);
   const [form, setForm] = useState<Partial<IntakeAnswers>>({
     side: "listing",
     isReferral: false,
@@ -83,6 +87,16 @@ function NewFileContent() {
 
   const applyExtracted = (values: Partial<IntakeAnswers>) =>
     setForm((prev) => ({ ...prev, ...values }));
+
+  const applyReferral = (values: Partial<IntakeAnswers>, profile: ReferralProfile | null) => {
+    applyExtracted(values);
+    setProfileDraft(profile);
+  };
+
+  const saveProfile = (fileId: string) => {
+    if (!profileDraft) return;
+    updateClientProfile(fileId, profileDraft);
+  };
 
   /* The answers as they stand, used for both preview and submission. */
   const answers: IntakeAnswers = useMemo(
@@ -138,11 +152,13 @@ function NewFileContent() {
   const finishBuild = () => {
     if (completingId) {
       completeIntake(completingId, answers);
-      router.push(`/files/${completingId}?welcome=1`);
+      saveProfile(completingId);
+      router.push(`/files/${completingId}?welcome=1&tab=client_profile`);
       return;
     }
     const id = createFile(answers);
-    router.push(`/files/${id}?welcome=1`);
+    saveProfile(id);
+    router.push(`/files/${id}?welcome=1&tab=client_profile`);
   };
 
   const handleSubmit = () => setBuilding(true);
@@ -226,6 +242,8 @@ function NewFileContent() {
                 title="Who is the client?"
                 blurb="In the finished product, the email address is also what creates their portal access."
               />
+
+              <ReferralPdfAssist onApply={applyReferral} />
 
               <CallNotesAssist onApply={applyExtracted} />
 
@@ -440,6 +458,16 @@ function NewFileContent() {
                 title="Here's what will be created"
                 blurb="Built from your answers, not from a fixed template."
               />
+
+              {profileDraft && (
+                <div className="rounded-2xl border border-itera-200 bg-itera-50/60 p-4">
+                  <p className="text-[14px] font-semibold text-ink-950">Client profile from the referral form</p>
+                  <p className="mt-1 text-[14px] leading-relaxed text-ink-700">{profileDraft.relationshipHistory}</p>
+                  <p className="mt-2 text-[13px] text-ink-500">
+                    Goals: {profileDraft.goals} Timeline: {profileDraft.timeline}
+                  </p>
+                </div>
+              )}
 
               <dl className="grid gap-px overflow-hidden rounded-xl border border-hairline bg-hairline sm:grid-cols-2">
                 <Summary label="Client" value={answers.clientName} />

@@ -58,7 +58,7 @@ export const SECTION_META: Record<WorkspaceSection, { title: string; blurb: stri
   },
   communications: {
     title: "Emails & Messages",
-    blurb: "Ready-made emails that fill themselves in, and your conversation with the client.",
+    blurb: "Send a referral form to another agent, ready-made emails, and your conversation with the client.",
   },
   financials: {
     title: "Offers & Money",

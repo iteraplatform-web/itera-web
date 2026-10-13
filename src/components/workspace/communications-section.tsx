@@ -11,6 +11,7 @@ import { Avatar, EmptyState } from "@/components/ui/misc";
 import { SectionLabel } from "@/components/ui/card";
 import { cn } from "@/lib/utils/cn";
 import { useFocusTarget } from "@/hooks/use-focus-target";
+import { ReferralFormCard } from "@/components/workspace/referral-form-card";
 import type { EmailTemplate, TransactionFile } from "@/types";
 
 export function CommunicationsSection({ file, focus }: { file: TransactionFile; focus?: string }) {
@@ -48,6 +49,8 @@ export function CommunicationsSection({ file, focus }: { file: TransactionFile; 
 
   return (
     <div className="space-y-8">
+      <ReferralFormCard file={file} />
+
       {/* ── Email templates ───────────────────────────────────── */}
       <section>
         <SectionLabel icon={Mail}>Email templates</SectionLabel>

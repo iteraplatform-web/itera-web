@@ -99,6 +99,7 @@ interface TransactionsState {
     upload?: UploadMeta
   ) => void;
   sendEmail: (fileId: string, templateId: string, actor?: string) => void;
+  recordReferralSent: (fileId: string, toName: string, toEmail: string, actor?: string) => void;
   sendMessage: (fileId: string, content: string, sender: "agent" | "client") => void;
   addNote: (fileId: string, content: string, author: string) => void;
   updateFinancials: (fileId: string, updates: Partial<TransactionFile["financials"]>) => void;
@@ -506,6 +507,32 @@ export const useTransactionsStore = create<TransactionsState>()(
 
         toast.info("Email sent", `${template.name} sent to ${file.clientName}`);
         announceAutomation(emailTicked);
+      },
+
+      recordReferralSent: (fileId, toName, toEmail, actor = "Demo Agent") => {
+        const file = get().files.find((f) => f.id === fileId);
+        if (!file) return;
+        const subject = `Referral form for ${file.clientName} to ${toName}`;
+        set((s) => {
+          const f = s.files.find((x) => x.id === fileId);
+          if (!f) return;
+          f.sentEmails.unshift({
+            id: uuid(),
+            templateId: "referral_outbound",
+            subject,
+            sentAt: new Date().toISOString(),
+            sentBy: actor,
+          });
+          f.activity.unshift({
+            id: uuid(),
+            type: "message_sent",
+            description: `Referral form sent to ${toName} (${toEmail})`,
+            actor,
+            createdAt: new Date().toISOString(),
+          });
+          f.updatedAt = new Date().toISOString();
+        });
+        toast.info("Referral form sent", `${file.clientName} sent to ${toName}`);
       },
 
       sendMessage: (fileId, content, sender) => {

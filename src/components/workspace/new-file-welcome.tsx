@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,13 @@ import type { TransactionFile } from "@/types";
  */
 export function NewFileWelcome({ file }: { file: TransactionFile }) {
   const router = useRouter();
-  const close = () => router.replace(`/files/${file.id}`);
+  const params = useSearchParams();
+  const close = () => {
+    const next = new URLSearchParams(params.toString());
+    next.delete("welcome");
+    const query = next.toString();
+    router.replace(query ? `/files/${file.id}?${query}` : `/files/${file.id}`);
+  };
   const docs = file.documents.length;
 
   return (
