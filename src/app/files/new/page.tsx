@@ -19,12 +19,12 @@ import {
 import { AuthGuard } from "@/components/layout/auth-guard";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, Textarea } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { CallNotesAssist } from "@/components/intake/call-notes-assist";
 import { ReferralPdfAssist } from "@/components/intake/referral-pdf-assist";
 import { BuildProgress } from "@/components/intake/build-progress";
-import { useTransactionsStore } from "@/stores";
+import { useAuthStore, useTransactionsStore } from "@/stores";
 import { generateChecklist, generateDocuments } from "@/lib/checklist/engine";
 import type { ReferralProfile } from "@/lib/referral/form";
 import { PHASE_LABELS, type IntakeAnswers, type TransactionSide } from "@/types";
@@ -59,9 +59,12 @@ function NewFileContent() {
   const createQuickLead = useTransactionsStore((s) => s.createQuickLead);
   const completeIntake = useTransactionsStore((s) => s.completeIntake);
   const updateClientProfile = useTransactionsStore((s) => s.updateClientProfile);
+  const addNote = useTransactionsStore((s) => s.addNote);
+  const user = useAuthStore((s) => s.user);
 
   const [step, setStep] = useState(1);
   const [profileDraft, setProfileDraft] = useState<ReferralProfile | null>(null);
+  const [customNote, setCustomNote] = useState("");
   const [form, setForm] = useState<Partial<IntakeAnswers>>({
     side: "listing",
     isReferral: false,
@@ -96,6 +99,19 @@ function NewFileContent() {
   const saveProfile = (fileId: string) => {
     if (!profileDraft) return;
     updateClientProfile(fileId, profileDraft);
+  };
+
+  const saveNote = (fileId: string) => {
+    const text = customNote.trim();
+    if (!text) return;
+    addNote(fileId, text, user?.name ?? "Agent");
+  };
+
+  const afterCreate = (fileId: string) => {
+    saveProfile(fileId);
+    saveNote(fileId);
+    const tab = customNote.trim() ? "notes" : profileDraft ? "client_profile" : "";
+    router.push(`/files/${fileId}?welcome=1${tab ? `&tab=${tab}` : ""}`);
   };
 
   /* The answers as they stand, used for both preview and submission. */
@@ -152,13 +168,10 @@ function NewFileContent() {
   const finishBuild = () => {
     if (completingId) {
       completeIntake(completingId, answers);
-      saveProfile(completingId);
-      router.push(`/files/${completingId}?welcome=1&tab=client_profile`);
+      afterCreate(completingId);
       return;
     }
-    const id = createFile(answers);
-    saveProfile(id);
-    router.push(`/files/${id}?welcome=1&tab=client_profile`);
+    afterCreate(createFile(answers));
   };
 
   const handleSubmit = () => setBuilding(true);
@@ -245,9 +258,7 @@ function NewFileContent() {
 
               <ReferralPdfAssist onApply={applyReferral} />
 
-              <CallNotesAssist onApply={applyExtracted} />
-
-              <div className="space-y-4">
+              <div className="space-y-4" id="intake-client-fields">
                 <Input
                   id="clientName"
                   label="Client name *"
@@ -274,6 +285,8 @@ function NewFileContent() {
                   />
                 </div>
               </div>
+
+              <CallNotesAssist onApply={applyExtracted} />
             </div>
           )}
 
@@ -369,6 +382,18 @@ function NewFileContent() {
                 title="Anything else worth recording?"
                 blurb="All optional — every one of these can be added later from the workspace."
               />
+
+              <div className="rounded-2xl border border-hairline bg-canvas/70 p-4">
+                <Textarea
+                  id="customNote"
+                  label="Custom note"
+                  rows={3}
+                  value={customNote}
+                  onChange={(e) => setCustomNote(e.target.value)}
+                  placeholder="Anything that does not have its own box — gate code, kids' names, a promise you made on the call…"
+                  hint="Saved on this file under Notes & History. Leave it blank if there is nothing extra."
+                />
+              </div>
 
               {form.isReferral && (
                 <div className="grid gap-4 rounded-xl border border-ink-200 bg-ink-100/50 p-4 sm:grid-cols-2">
@@ -477,6 +502,7 @@ function NewFileContent() {
                   value={answers.propertyAddress}
                 />
                 <Summary label="Contact" value={answers.phone} />
+                {customNote.trim() && <Summary label="Note" value={customNote.trim()} />}
                 {answers.isReferral && (
                   <Summary
                     label="Referral"

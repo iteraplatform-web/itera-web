@@ -13,8 +13,10 @@ import {
   startOfMonth,
   subMonths,
 } from "date-fns";
-import { CalendarDays, ChevronLeft, ChevronRight, KeyRound } from "lucide-react";
+import { Bell, CalendarDays, ChevronLeft, ChevronRight, ExternalLink, KeyRound } from "lucide-react";
 import { IconButton, Button } from "@/components/ui/button";
+import { ReminderModal } from "@/components/layout/quick-add-fab";
+import { googleCalendarUrl } from "@/lib/calendar/google";
 import { STATUS_THEME } from "@/lib/utils/status-theme";
 import { cn } from "@/lib/utils/cn";
 import type { TransactionFile } from "@/types";
@@ -24,13 +26,17 @@ interface CalendarEvent {
   fileId: string;
   label: string;
   fileLabel: string;
-  kind: "task" | "closing";
+  kind: "task" | "closing" | "reminder";
   status: TransactionFile["status"];
   overdue: boolean;
+  dueAt?: string;
 }
 
 export function CalendarView({ files }: { files: TransactionFile[] }) {
   const [month, setMonth] = useState(() => startOfMonth(new Date()));
+  const [reminderOpen, setReminderOpen] = useState(false);
+  const [reminderDate, setReminderDate] = useState<string | undefined>();
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const today = new Date();
 
   /* Build the day → events map once per input change. */
@@ -67,6 +73,20 @@ export function CalendarView({ files }: { files: TransactionFile[] }) {
           overdue: false,
         });
       }
+
+      (file.reminders ?? []).forEach((reminder) => {
+        if (reminder.done || !reminder.dueAt) return;
+        push(reminder.dueAt, {
+          id: reminder.id,
+          fileId: file.id,
+          label: reminder.title,
+          fileLabel: file.propertyAddress || file.clientName,
+          kind: "reminder",
+          status: file.status,
+          overdue: parseISO(reminder.dueAt) < today,
+          dueAt: reminder.dueAt,
+        });
+      });
     });
 
     return map;
@@ -91,11 +111,21 @@ export function CalendarView({ files }: { files: TransactionFile[] }) {
             {format(month, "MMMM yyyy")}
           </h3>
           <p className="text-[13px] text-ink-500">
-            <span className="tnum">{monthEventCount}</span> deadline
+            <span className="tnum">{monthEventCount}</span> item
             {monthEventCount === 1 ? "" : "s"} this month
           </p>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center justify-end gap-1">
+          <Button
+            size="sm"
+            onClick={() => {
+              setReminderDate(undefined);
+              setReminderOpen(true);
+            }}
+          >
+            <Bell className="h-3.5 w-3.5" />
+            Add reminder
+          </Button>
           {!isSameMonth(month, today) && (
             <Button size="sm" variant="ghost" onClick={() => setMonth(startOfMonth(today))}>
               Today
@@ -138,9 +168,11 @@ export function CalendarView({ files }: { files: TransactionFile[] }) {
           return (
             <div
               key={key}
+              onClick={() => setSelectedKey(key)}
               className={cn(
-                "min-h-[96px] bg-surface p-1.5 transition-colors",
-                isToday && "bg-itera-50/60"
+                "min-h-[96px] cursor-pointer bg-surface p-1.5 text-left transition-colors hover:bg-canvas",
+                isToday && "bg-itera-50/60",
+                selectedKey === key && "ring-2 ring-inset ring-itera-500"
               )}
             >
               <div className="flex items-center justify-between px-0.5">
@@ -165,10 +197,13 @@ export function CalendarView({ files }: { files: TransactionFile[] }) {
                     key={event.id}
                     href={`/files/${event.fileId}`}
                     title={`${event.label} — ${event.fileLabel}`}
+                    onClick={(e) => e.stopPropagation()}
                     className={cn(
                       "flex items-center gap-1 truncate rounded-md px-1.5 py-1 text-[12px] font-medium leading-tight transition-colors",
                       event.kind === "closing"
                         ? "bg-ink-950 text-white hover:bg-ink-800"
+                        : event.kind === "reminder"
+                        ? "bg-amber-50 text-amber-800 hover:bg-amber-100"
                         : event.overdue
                         ? "bg-red-50 text-red-700 hover:bg-red-100"
                         : "bg-ink-100 text-ink-700 hover:bg-ink-200"
@@ -176,6 +211,8 @@ export function CalendarView({ files }: { files: TransactionFile[] }) {
                   >
                     {event.kind === "closing" ? (
                       <KeyRound className="h-2.5 w-2.5 shrink-0" />
+                    ) : event.kind === "reminder" ? (
+                      <Bell className="h-2.5 w-2.5 shrink-0" />
                     ) : (
                       <span
                         className={cn(
@@ -211,7 +248,92 @@ export function CalendarView({ files }: { files: TransactionFile[] }) {
           <span className="h-2.5 w-2.5 rounded-sm bg-red-400" />
           Overdue
         </span>
+        <span className="flex items-center gap-1.5 text-[13px] text-ink-500">
+          <Bell className="h-3 w-3 text-amber-700" />
+          Reminder
+        </span>
       </div>
+      {selectedKey && (
+        <DayDetail
+          dayKey={selectedKey}
+          events={eventsByDay.get(selectedKey) ?? []}
+          onAdd={() => {
+            setReminderDate(selectedKey);
+            setReminderOpen(true);
+          }}
+        />
+      )}
+      <ReminderModal
+        open={reminderOpen}
+        initialDate={reminderDate}
+        onClose={() => setReminderOpen(false)}
+      />
+    </div>
+  );
+}
+
+function DayDetail({
+  dayKey,
+  events,
+  onAdd,
+}: {
+  dayKey: string;
+  events: CalendarEvent[];
+  onAdd: () => void;
+}) {
+  const day = parseISO(dayKey);
+  return (
+    <div className="border-t border-hairline bg-canvas px-5 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-[15px] font-semibold text-ink-950">{format(day, "EEEE, MMMM d")}</p>
+          <p className="text-[13px] text-ink-500">
+            {events.length === 0
+              ? "Nothing on this day yet."
+              : `${events.length} item${events.length === 1 ? "" : "s"}`}
+          </p>
+        </div>
+        <Button size="sm" onClick={onAdd}>
+          <Bell className="h-3.5 w-3.5" />
+          Add reminder
+        </Button>
+      </div>
+      {events.length > 0 && (
+        <ul className="mt-3 space-y-2">
+          {events.map((event) => (
+            <li
+              key={event.id}
+              className="flex flex-wrap items-center gap-2 rounded-xl border border-hairline bg-surface px-3 py-2.5"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[14px] font-medium text-ink-950">{event.label}</p>
+                <p className="truncate text-[13px] text-ink-500">
+                  {event.kind === "reminder" && event.dueAt ? `${format(parseISO(event.dueAt), "h:mm a")} · ` : ""}
+                  {event.fileLabel}
+                </p>
+              </div>
+              <Link href={`/files/${event.fileId}`} className="text-[13px] font-semibold text-itera-700 hover:text-itera-800">
+                Open file
+              </Link>
+              {event.kind === "reminder" && event.dueAt && (
+                <a
+                  href={googleCalendarUrl({
+                    title: event.label,
+                    start: parseISO(event.dueAt),
+                    details: `ITERA file: ${event.fileLabel}`,
+                  })}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[12px] font-semibold text-ink-700 ring-1 ring-inset ring-hairline hover:bg-canvas"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  Add to Google Calendar
+                </a>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

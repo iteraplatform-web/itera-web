@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input, Textarea, Select } from "@/components/ui/input";
 import { useAuthStore, useTransactionsStore } from "@/stores";
 import { toast } from "@/stores/toast-store";
+import { openGoogleCalendar } from "@/lib/calendar/google";
+import { GoogleCalendarChoice } from "@/components/calendar/google-choice";
 import { cn } from "@/lib/utils/cn";
 import type { TransactionFile } from "@/types";
 
@@ -189,14 +191,17 @@ function NoteModal({
   );
 }
 
-function ReminderModal({
+export function ReminderModal({
   open,
   onClose,
   currentFile,
+  initialDate,
 }: {
   open: boolean;
   onClose: () => void;
   currentFile?: TransactionFile;
+  /** yyyy-MM-dd, used when the reminder is started from a calendar day. */
+  initialDate?: string;
 }) {
   const files = useFileOptions();
   const addReminder = useTransactionsStore((s) => s.addReminder);
@@ -204,21 +209,33 @@ function ReminderModal({
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(format(startOfTomorrow(), "yyyy-MM-dd"));
   const [time, setTime] = useState("09:00");
+  const [addToGoogle, setAddToGoogle] = useState(false);
 
   useEffect(() => {
     if (open) {
       setFileId(currentFile?.id ?? "");
       setTitle("");
-      setDate(format(startOfTomorrow(), "yyyy-MM-dd"));
+      setDate(initialDate || format(startOfTomorrow(), "yyyy-MM-dd"));
       setTime("09:00");
+      setAddToGoogle(false);
     }
-  }, [open, currentFile]);
+  }, [open, currentFile, initialDate]);
 
-  const save = () => {
+  const targetFile = files.find((f) => f.id === fileId);
+
+  const save = (alsoGoogle: boolean) => {
     if (!fileId || !title.trim()) return;
     const [h, m] = time.split(":").map(Number);
     const dueAt = setMinutes(setHours(new Date(`${date}T00:00:00`), h), m);
-    addReminder(fileId, { title: title.trim(), dueAt: dueAt.toISOString() });
+    const text = title.trim();
+    addReminder(fileId, { title: text, dueAt: dueAt.toISOString() });
+    if (alsoGoogle) {
+      openGoogleCalendar({
+        title: text,
+        start: dueAt,
+        details: targetFile ? `ITERA file: ${fileLabel(targetFile)}` : undefined,
+      });
+    }
     onClose();
   };
 
@@ -227,13 +244,13 @@ function ReminderModal({
       open={open}
       onClose={onClose}
       title="Quick reminder"
-      description="ITERA will alert you at that time, wherever you are in the app."
+      description="Shows on this file and on your ITERA calendar."
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={save} disabled={!fileId || !title.trim()}>
+          <Button onClick={() => save(addToGoogle)} disabled={!fileId || !title.trim()}>
             Set reminder
           </Button>
         </>
@@ -253,6 +270,13 @@ function ReminderModal({
           <Input id="quickReminderDate" label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           <Input id="quickReminderTime" label="Time" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
         </div>
+        {date && (
+          <p className="text-[13px] text-ink-500">
+            {targetFile ? `${fileLabel(targetFile)} · ` : ""}
+            {format(setMinutes(setHours(new Date(`${date}T00:00:00`), Number(time.split(":")[0]) || 0), Number(time.split(":")[1]) || 0), "EEE, MMM d 'at' h:mm a")}
+          </p>
+        )}
+        <GoogleCalendarChoice checked={addToGoogle} onChange={setAddToGoogle} />
       </div>
     </Modal>
   );

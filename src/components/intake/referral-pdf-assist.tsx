@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, FileUp, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,6 +28,7 @@ export function ReferralPdfAssist({
   const [profile, setProfile] = useState<ReferralProfile | null>(null);
   const [accepted, setAccepted] = useState<Set<string>>(new Set());
   const [useProfile, setUseProfile] = useState(true);
+  const [applied, setApplied] = useState(false);
 
   const run = (file: Blob, name: string) => {
     setFileName(name);
@@ -52,6 +53,7 @@ export function ReferralPdfAssist({
     setProfile(result.profile);
     setAccepted(new Set(result.fields.map((field) => field.field)));
     setUseProfile(true);
+    setApplied(false);
     setState("done");
   };
 
@@ -71,7 +73,13 @@ export function ReferralPdfAssist({
         (values as Record<string, unknown>)[field.field] = field.value;
       });
     onApply(values, useProfile ? profile : null);
+    setApplied(true);
   };
+
+  useEffect(() => {
+    if (!applied) return;
+    document.getElementById("clientName")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [applied]);
 
   return (
     <div className="rounded-2xl border border-itera-200 bg-itera-50/50 p-4">
@@ -135,7 +143,32 @@ export function ReferralPdfAssist({
 
       {state === "error" && <p className="mt-3 text-[14px] text-ink-600">{error}</p>}
 
-      {state === "done" && (
+      {state === "done" && applied && (
+        <div className="mt-4 animate-fade-in border-t border-itera-200 pt-4">
+          <p className="text-[14px] font-semibold text-ink-950">Added to the form below.</p>
+          <ul className="mt-2 space-y-1">
+            {found
+              .filter((field) => accepted.has(field.field))
+              .slice(0, 4)
+              .map((field) => (
+                <li key={field.field} className="text-[14px] text-ink-700">
+                  <span className="text-ink-500">{field.label}: </span>
+                  {field.display}
+                </li>
+              ))}
+          </ul>
+          {useProfile && (
+            <p className="mt-2 text-[13px] leading-relaxed text-ink-500">
+              The client profile will be saved when you create the file.
+            </p>
+          )}
+          <Button type="button" size="sm" variant="ghost" className="mt-2" onClick={() => setApplied(false)}>
+            Change details
+          </Button>
+        </div>
+      )}
+
+      {state === "done" && !applied && (
         <div className="mt-4 animate-fade-in border-t border-itera-200 pt-4">
           <p className="text-[13px] font-semibold text-ink-900">AI analysis</p>
           <button
@@ -185,7 +218,12 @@ export function ReferralPdfAssist({
           </ul>
 
           <div className="mt-3">
-            <Button size="sm" onClick={apply} disabled={accepted.size === 0 && !useProfile}>
+            <Button
+              type="button"
+              size="sm"
+              onClick={apply}
+              disabled={accepted.size === 0 && !useProfile}
+            >
               <Check className="h-3.5 w-3.5" />
               Use these details
             </Button>

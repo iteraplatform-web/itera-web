@@ -17,6 +17,7 @@ import {
   AlarmClock,
   ArrowRight,
   Bell,
+  ExternalLink,
   CalendarDays,
   Check,
   CheckCircle2,
@@ -32,6 +33,8 @@ import {
   Wallet,
 } from "lucide-react";
 import { useAuthStore, useTransactionsStore } from "@/stores";
+import { googleCalendarUrl, openGoogleCalendar } from "@/lib/calendar/google";
+import { GoogleCalendarChoice } from "@/components/calendar/google-choice";
 import { sectionHref } from "@/components/workspace/workspace-sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -341,17 +344,27 @@ function RemindersCard({ file }: { file: TransactionFile }) {
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(format(startOfTomorrow(), "yyyy-MM-dd"));
   const [time, setTime] = useState("09:00");
+  const [addToGoogle, setAddToGoogle] = useState(false);
 
   const reminders = [...(file.reminders ?? [])].sort(
     (a, b) => Number(a.done) - Number(b.done) || parseISO(a.dueAt).getTime() - parseISO(b.dueAt).getTime()
   );
 
-  const save = () => {
+  const save = (alsoGoogle: boolean) => {
     if (!title.trim()) return;
     const [h, m] = time.split(":").map(Number);
     const dueAt = setMinutes(setHours(parseISO(date), h), m);
-    addReminder(file.id, { title: title.trim(), dueAt: dueAt.toISOString() });
+    const text = title.trim();
+    addReminder(file.id, { title: text, dueAt: dueAt.toISOString() });
+    if (alsoGoogle) {
+      openGoogleCalendar({
+        title: text,
+        start: dueAt,
+        details: `ITERA file: ${file.propertyAddress || file.clientName}`,
+      });
+    }
     setTitle("");
+    setAddToGoogle(false);
     setOpen(false);
   };
 
@@ -367,7 +380,7 @@ function RemindersCard({ file }: { file: TransactionFile }) {
       title="Reminders"
       icon={Bell}
       action={
-        <Button size="xs" variant="secondary" onClick={() => setOpen(true)}>
+        <Button size="xs" variant="secondary" onClick={() => { setAddToGoogle(false); setOpen(true); }}>
           <Plus className="h-3.5 w-3.5" />
           Add
         </Button>
@@ -375,7 +388,7 @@ function RemindersCard({ file }: { file: TransactionFile }) {
     >
       {reminders.length === 0 ? (
         <p className="text-[15px] text-ink-500">
-          No reminders. Add one and ITERA will alert you at that time — even if you are on another file.
+          No reminders yet. Add one and it shows here and on the calendar. You can also copy it to Google Calendar.
         </p>
       ) : (
         <ul className="space-y-2">
@@ -385,7 +398,7 @@ function RemindersCard({ file }: { file: TransactionFile }) {
               <li
                 key={r.id}
                 className={cn(
-                  "flex items-start gap-3 rounded-xl border px-3.5 py-3",
+                  "flex flex-wrap items-center gap-3 rounded-xl border px-3.5 py-3",
                   r.done ? "border-hairline bg-canvas" : due ? "border-amber-300 bg-amber-50" : "border-hairline bg-surface"
                 )}
               >
@@ -406,6 +419,19 @@ function RemindersCard({ file }: { file: TransactionFile }) {
                     {when(r.dueAt)}
                   </p>
                 </div>
+                <a
+                  href={googleCalendarUrl({
+                    title: r.title,
+                    start: parseISO(r.dueAt),
+                    details: `ITERA file: ${file.propertyAddress || file.clientName}`,
+                  })}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[12px] font-semibold text-ink-600 ring-1 ring-inset ring-hairline hover:bg-canvas hover:text-ink-950"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  Google Calendar
+                </a>
                 <button
                   onClick={() => removeReminder(file.id, r.id)}
                   className="rounded-lg p-1.5 text-ink-400 hover:bg-ink-100 hover:text-ink-700"
@@ -423,13 +449,13 @@ function RemindersCard({ file }: { file: TransactionFile }) {
         open={open}
         onClose={() => setOpen(false)}
         title="Add a reminder"
-        description="You'll get a notification at this time, wherever you are in ITERA."
+        description="You'll get a notification at this time, and it will show on the calendar."
         footer={
           <>
             <Button variant="secondary" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={save} disabled={!title.trim()}>
+            <Button onClick={() => save(addToGoogle)} disabled={!title.trim()}>
               <AlarmClock className="h-4 w-4" />
               Set reminder
             </Button>
@@ -467,6 +493,7 @@ function RemindersCard({ file }: { file: TransactionFile }) {
             <Input id="reminderDate" label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             <Input id="reminderTime" label="Time" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
           </div>
+          <GoogleCalendarChoice checked={addToGoogle} onChange={setAddToGoogle} />
         </div>
       </Modal>
     </Panel>
