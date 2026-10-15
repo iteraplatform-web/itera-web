@@ -33,7 +33,7 @@ export function CommissionTerms() {
         <Input id="fee" label="Transaction fee per closing" type="number" leading="$" value={fee} onChange={(e) => setFee(e.target.value)} />
       </div>
       <p className="mt-4 rounded-xl bg-canvas px-4 py-3 text-[15px] text-ink-700">
-        Example: on {money(exampleGross)} gross commission you would take home{" "}
+        Example: on {money(exampleGross)} gross compensation you would take home{" "}
         <strong className="text-ink-950">{money(Math.max(0, exampleNet))}</strong>.
       </p>
       <div className="mt-4 flex justify-end">

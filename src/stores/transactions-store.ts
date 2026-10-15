@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 import { v4 as uuid } from "uuid";
-import { addDays, format } from "date-fns";
+import { addDays, format, parseISO } from "date-fns";
 import {
   advanceChecklistToStatus,
   applyAutomation,
@@ -22,14 +22,25 @@ import {
   fileNameBase,
   createTransactionFromIntake,
   interpolateTemplate,
+  mergeOverriddenChecklist,
   resolveTaskStatus,
   EMAIL_TEMPLATES,
+  type SavedSequence,
   type TemplateContext,
 } from "@/lib/checklist/engine";
 import { SEED_TRANSACTIONS } from "@/lib/seed/data";
-import { ensureWorkFields } from "@/lib/work/defaults";
+import { emptyDealContacts, emptyFolderContext, ensureWorkFields } from "@/lib/work/defaults";
 import { toast } from "@/stores/toast-store";
+import { useNotificationsStore } from "@/stores/notifications-store";
 import { STATUS_THEME } from "@/lib/utils/status-theme";
+import {
+  currentListingAgreement,
+  isDayAfterTerm,
+  isListingTermOver,
+  listingExtendError,
+  listingExpiryWarning,
+  listingTermEnd,
+} from "@/lib/work/listing-expiry";
 import {
   filterFiles,
   getFileById as selectFileById,
@@ -42,6 +53,8 @@ import type {
   BuyerSearchWork,
   ClientProfileWork,
   CmaWork,
+  DealContacts,
+  FolderContext,
   DashboardView,
   IntakeAnswers,
   ListingDetailsWork,
@@ -58,6 +71,7 @@ import type {
   UrgentItem,
   WorkspaceSection,
 } from "@/types";
+import { OFFER_STATUS_LABELS } from "@/types";
 import type { CustomField, Message, Note, Photo, PortalVisibility, Reminder } from "@/types";
 import { createPortalAccess, makeTempPassword } from "@/lib/client/access";
 
@@ -87,9 +101,13 @@ interface TransactionsState {
   getPortfolioStats: () => PortfolioStats;
   getMostUrgentItem: () => UrgentItem | null;
 
-  createFile: (answers: IntakeAnswers) => string;
+  createFile: (answers: IntakeAnswers, sequence?: SavedSequence) => string;
   createQuickLead: (name: string, phone: string) => string;
   updateFileStatus: (fileId: string, status: TransactionStatus, actor?: string) => void;
+  /** Move listings to Expired when the signed agreement ended yesterday or earlier. */
+  applyExpiredListings: (options?: { notify?: boolean }) => void;
+  /** Set a later listing end date. An expired listing becomes Listed again. */
+  extendListing: (fileId: string, termEnd: string, actor?: string) => void;
   toggleTask: (fileId: string, taskId: string, actor?: string) => void;
   toggleSubtask: (fileId: string, taskId: string, subtaskId: string, actor?: string) => void;
   markDocumentReceived: (
@@ -104,7 +122,7 @@ interface TransactionsState {
   addNote: (fileId: string, content: string, author: string) => void;
   updateFinancials: (fileId: string, updates: Partial<TransactionFile["financials"]>) => void;
 
-  addOffer: (fileId: string, offer: Omit<Offer, "id" | "receivedAt" | "status">) => void;
+  addOffer: (fileId: string, offer: Omit<Offer, "id" | "receivedAt"> & { receivedAt?: string }) => void;
   setOfferStatus: (fileId: string, offerId: string, status: OfferStatus, actor?: string) => void;
   uploadDocument: (fileId: string, docId: string, upload: UploadMeta) => void;
   addUploadedDocument: (
@@ -135,9 +153,11 @@ interface TransactionsState {
   setPortalVisibility: (fileId: string, updates: Partial<PortalVisibility>) => void;
   recordClientSignIn: (fileId: string) => void;
   addDocument: (fileId: string, name: string, category: TransactionFile["documents"][number]["category"]) => void;
-  completeIntake: (fileId: string, answers: IntakeAnswers) => void;
+  completeIntake: (fileId: string, answers: IntakeAnswers, sequence?: SavedSequence) => void;
 
   updateClientProfile: (fileId: string, updates: Partial<ClientProfileWork>, actor?: string) => void;
+  updateDealContacts: (fileId: string, contacts: DealContacts, actor?: string) => void;
+  updateFolderContext: (fileId: string, story: string, actor?: string) => void;
   updateCma: (fileId: string, updates: Partial<CmaWork>, actor?: string) => void;
   updateListingDetails: (fileId: string, updates: Partial<ListingDetailsWork>, actor?: string) => void;
   updatePropertyPrep: (fileId: string, updates: Partial<PropertyPrepWork>, actor?: string) => void;
@@ -239,6 +259,53 @@ function runAutomation(
   return ticked;
 }
 
+/** One accepted offer wins. The other open offers step aside, and the file follows this offer's dates and the agent's own commission. */
+function applyAcceptedOffer(file: TransactionFile, offerId: string, actor: string): { moved: number; ticked: string[] } {
+  const offer = file.offers.find((item) => item.id === offerId);
+  if (!offer) return { moved: 0, ticked: [] };
+
+  offer.status = "accepted";
+  offer.acceptedAt = offer.acceptedAt ?? new Date().toISOString();
+  file.offers.forEach((other) => {
+    if (other.id !== offerId && (other.status === "pending" || other.status === "countered")) {
+      other.status = "rejected";
+    }
+  });
+  file.listPrice = offer.amount;
+  file.financials.listPrice = offer.amount;
+  if (offer.earnestMoney) file.financials.earnestMoney = offer.earnestMoney;
+  if (file.side === "listing" && offer.sellingAgentRate) file.financials.commissionRate = offer.sellingAgentRate;
+  if (file.side === "buying" && offer.buyerAgentRate) file.financials.commissionRate = offer.buyerAgentRate;
+
+  file.contractDate = offer.acceptedAt;
+  const ticked = runAutomation(file, ON_OFFER_ACCEPTED, "offer accepted", actor);
+  file.closingDate = offer.proposedClosingDate ?? addDays(new Date(), 30).toISOString();
+  const moved = rescheduleChecklist(file.checklist, {
+    contractDate: file.contractDate,
+    closingDate: file.closingDate,
+  });
+  if (moved > 0) {
+    pushWorkActivity(
+      file,
+      "automation",
+      `${moved} deadlines set from the contract date and a ${format(new Date(file.closingDate), "MMM d")} closing`,
+      "ITERA"
+    );
+  }
+  if (file.status !== "under_contract" && file.status !== "closed") {
+    const prevLabel = STATUS_THEME[file.status].label;
+    file.status = "under_contract";
+    file.activity.unshift({
+      id: uuid(),
+      type: "status_change",
+      description: `Status changed from ${prevLabel} to Under Contract`,
+      actor,
+      createdAt: new Date().toISOString(),
+    });
+  }
+  return { moved, ticked };
+}
+
 function announceAutomation(ticked: string[]) {
   if (ticked.length === 0) return;
   setTimeout(
@@ -282,6 +349,7 @@ export const useTransactionsStore = create<TransactionsState>()(
             s.files = s.files.map(ensureWorkFields);
           });
         }
+        get().applyExpiredListings({ notify: false });
       },
 
       setDashboardView: (view) => set((s) => { s.dashboardView = view; }),
@@ -301,12 +369,25 @@ export const useTransactionsStore = create<TransactionsState>()(
 
       getMostUrgentItem: () => getMostUrgentItem(get().files),
 
-      createFile: (answers) => {
-        const file = createTransactionFromIntake(answers);
+      createFile: (answers, sequence) => {
+        const file = createTransactionFromIntake(answers, sequence
+          ? { checklist: sequence.checklist, checklistOverridden: sequence.overridden || undefined }
+          : undefined);
+        if (sequence?.overridden) {
+          file.activity.unshift({
+            id: uuid(),
+            type: "automation",
+            description: "Task list changed before the file was saved",
+            actor: "Demo Agent",
+            createdAt: file.createdAt,
+          });
+        }
         set((s) => { s.files.unshift(file); });
         toast.success(
           "File created",
-          `Checklist built with ${file.checklist.length} tasks for ${answers.clientName}`
+          sequence?.overridden
+            ? `Your task list was saved with ${file.checklist.length} tasks for ${answers.clientName}`
+            : `Checklist built with ${file.checklist.length} tasks for ${answers.clientName}`
         );
         return file.id;
       },
@@ -353,14 +434,104 @@ export const useTransactionsStore = create<TransactionsState>()(
             tone: status === "closed" ? "success" : "info",
           });
         });
+        // A listing put back on the market still expires if the signed term already ended.
+        if (
+          status === "prospective" ||
+          status === "listed" ||
+          status === "buyer_agency" ||
+          status === "in_progress"
+        ) {
+          get().applyExpiredListings({ notify: false });
+        }
+      },
+
+      applyExpiredListings: ({ notify = true } = {}) => {
+        const now = new Date();
+        for (const file of get().files) {
+          if (!isListingTermOver(file, now)) continue;
+          get().updateFileStatus(file.id, "expired", "ITERA");
+        }
+        if (!notify) return;
+
+        const notifications = useNotificationsStore.getState();
+        const seen = new Set(
+          notifications.notifications.map((n) => n.dedupeKey).filter((key): key is string => Boolean(key))
+        );
+        let toasted = 0;
+        for (const file of get().files) {
+          if (file.status !== "expired") continue;
+          const end = listingTermEnd(file);
+          if (!end || !isDayAfterTerm(end, now)) continue;
+          const key = `listing-expired:${file.id}:${end}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const when = format(parseISO(end), "MMM d, yyyy");
+          const label = file.propertyAddress || file.clientName;
+          notifications.addNotification({
+            fileId: file.id,
+            title: "Listing expired",
+            message: `${label} — the listing agreement ended ${when}.`,
+            type: "urgent",
+            dedupeKey: key,
+          });
+          if (toasted === 0) toast.deadline("Listing expired", `${label} ended ${when}.`);
+          toasted += 1;
+        }
+
+        let warned = 0;
+        for (const file of get().files) {
+          const warning = listingExpiryWarning(file, now);
+          if (!warning) continue;
+          const key = `listing-expiring:${file.id}:${warning.termEnd}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const when = format(parseISO(warning.termEnd), "MMM d, yyyy");
+          const label = file.propertyAddress || file.clientName;
+          notifications.addNotification({
+            fileId: file.id,
+            title: "Listing expires soon",
+            message: `${label}. This listing expires on ${when}.`,
+            type: "urgent",
+            dedupeKey: key,
+          });
+          if (warned === 0) toast.deadline("Listing expires soon", `This listing expires on ${when}.`);
+          warned += 1;
+        }
+      },
+
+      extendListing: (fileId, termEnd, actor = "Demo Agent") => {
+        const file = get().files.find((f) => f.id === fileId);
+        const agreement = file ? currentListingAgreement(file) : undefined;
+        if (!file || !agreement?.termEnd) {
+          toast.error("Cannot extend", "Save an executed listing agreement with an end date first.");
+          return;
+        }
+        const problem = listingExtendError(agreement.termEnd, termEnd);
+        if (problem) {
+          toast.error("Cannot extend", problem);
+          return;
+        }
+        const when = format(parseISO(termEnd), "MMM d, yyyy");
+        const wasExpired = file.status === "expired";
+        set((s) => {
+          const f = s.files.find((x) => x.id === fileId);
+          const a = f?.agreements.find((x) => x.id === agreement.id);
+          if (!f || !a) return;
+          a.termEnd = termEnd;
+          pushWorkActivity(f, "agreement_updated", `Listing extended through ${when}`, actor);
+        });
+        if (wasExpired) get().updateFileStatus(fileId, "listed", actor);
+        toast.success("Listing extended", `The new end date is ${when}.`);
+        get().applyExpiredListings();
       },
 
       toggleTask: (fileId, taskId, actor = "Demo Agent") => {
         const file = get().files.find((f) => f.id === fileId);
         const task = file?.checklist.find((t) => t.id === taskId);
-        if (!file || !task || task.status === "blocked") return;
+        if (!file || !task) return;
 
         const completing = task.status !== "completed";
+        const wasBlocked = task.status === "blocked";
 
         set((s) => {
           const f = s.files.find((x) => x.id === fileId);
@@ -375,7 +546,9 @@ export const useTransactionsStore = create<TransactionsState>()(
             f.activity.unshift({
               id: uuid(),
               type: "task_completed",
-              description: `Completed: ${t.title}`,
+              description: wasBlocked
+                ? `Completed while an earlier task was still open: ${t.title}`
+                : `Completed: ${t.title}`,
               actor,
               createdAt: new Date().toISOString(),
             });
@@ -414,7 +587,7 @@ export const useTransactionsStore = create<TransactionsState>()(
           const file = s.files.find((f) => f.id === fileId);
           if (!file) return;
           const task = file.checklist.find((t) => t.id === taskId);
-          if (!task || task.status === "blocked") return;
+          if (!task) return;
           const sub = task.subtasks.find((st) => st.id === subtaskId);
           if (!sub) return;
           sub.completed = !sub.completed;
@@ -612,33 +785,56 @@ export const useTransactionsStore = create<TransactionsState>()(
         set((s) => {
           const f = s.files.find((x) => x.id === fileId);
           if (!f) return;
+          const createdId = uuid();
+          const now = new Date().toISOString();
+          const status = offer.status ?? "pending";
           f.offers.unshift({
             ...offer,
-            id: uuid(),
-            status: "pending",
-            receivedAt: new Date().toISOString(),
+            id: createdId,
+            status,
+            receivedAt: offer.receivedAt ?? now,
+            counteredAt: status === "countered" || offer.counteredAt ? offer.counteredAt ?? now : undefined,
+            acceptedAt: status === "accepted" ? offer.acceptedAt ?? now : undefined,
           });
           offerTicked = runAutomation(f, ON_OFFER_LOGGED, "offer logged", "Demo Agent");
+          if (offer.status === "accepted") {
+            const accepted = applyAcceptedOffer(f, createdId, "Demo Agent");
+            offerTicked = [...offerTicked, ...accepted.ticked];
+          }
           f.activity.unshift({
             id: uuid(),
             type: "status_change",
-            description: `Offer logged: $${offer.amount.toLocaleString()} from ${offer.buyerName}`,
+            description:
+              offer.status === "countered"
+                ? `Counter logged: $${offer.amount.toLocaleString()} from ${offer.buyerName}`
+                : offer.status === "accepted"
+                  ? `Offer accepted at log: $${offer.amount.toLocaleString()} from ${offer.buyerName}`
+                  : `Offer logged: $${offer.amount.toLocaleString()} from ${offer.buyerName}`,
             actor: "Demo Agent",
-            createdAt: new Date().toISOString(),
+            createdAt: now,
           });
           f.updatedAt = new Date().toISOString();
           broadcast(s, {
             fileId,
-            title: "An offer came in",
-            message: isFirst
-              ? "Your agent has received an offer and will be in touch."
-              : "Another offer has come in — your agent will walk you through both.",
+            title: offer.status === "accepted" ? "Your offer was accepted" : "An offer came in",
+            message:
+              offer.status === "accepted"
+                ? `${f.propertyAddress} is under contract at $${offer.amount.toLocaleString()}.`
+                : isFirst
+                  ? "Your agent has received an offer and will be in touch."
+                  : "Another offer has come in — your agent will walk you through both.",
             tone: "success",
           });
         });
 
         toast.success(
-          isFirst ? "Offer logged" : `Offer ${file.offers.length + 1} logged`,
+          offer.status === "accepted"
+            ? "Offer accepted"
+            : offer.status === "countered"
+              ? "Counter logged"
+              : isFirst
+                ? "Offer logged"
+                : `Offer ${file.offers.length + 1} logged`,
           `$${offer.amount.toLocaleString()} from ${offer.buyerName}`
         );
         announceAutomation(offerTicked);
@@ -656,53 +852,19 @@ export const useTransactionsStore = create<TransactionsState>()(
           const o = f?.offers.find((x) => x.id === offerId);
           if (!f || !o) return;
 
-          o.status = status;
-
-          // Accepting one offer necessarily rejects the others, and moves the
-          // file under contract at the accepted price.
           if (status === "accepted") {
-            f.offers.forEach((other) => {
-              if (other.id !== offerId && other.status === "pending") {
-                other.status = "rejected";
-              }
-            });
-            f.listPrice = o.amount;
-            f.financials.listPrice = o.amount;
-            if (o.earnestMoney) f.financials.earnestMoney = o.earnestMoney;
-            // Acceptance is the contract date; closing defaults to 30 days out
-            // when the offer did not propose one — the usual financed timeline.
-            f.contractDate = new Date().toISOString();
-            acceptTicked = runAutomation(f, ON_OFFER_ACCEPTED, "offer accepted", actor);
-            f.closingDate = o.proposedClosingDate ?? addDays(new Date(), 30).toISOString();
-            movedOnAccept = rescheduleChecklist(f.checklist, {
-              contractDate: f.contractDate,
-              closingDate: f.closingDate,
-            });
-            if (movedOnAccept > 0) {
-              pushWorkActivity(
-                f,
-                "automation",
-                `${movedOnAccept} deadlines set from the contract date and a ${format(new Date(f.closingDate), "MMM d")} closing`,
-                "ITERA"
-              );
-            }
-            if (f.status !== "under_contract" && f.status !== "closed") {
-              const prevLabel = STATUS_THEME[f.status].label;
-              f.status = "under_contract";
-              f.activity.unshift({
-                id: uuid(),
-                type: "status_change",
-                description: `Status changed from ${prevLabel} to Under Contract`,
-                actor,
-                createdAt: new Date().toISOString(),
-              });
-            }
+            const accepted = applyAcceptedOffer(f, offerId, actor);
+            movedOnAccept = accepted.moved;
+            acceptTicked = accepted.ticked;
+          } else {
+            o.status = status;
+            if (status === "countered") o.counteredAt = o.counteredAt ?? new Date().toISOString();
           }
 
           f.activity.unshift({
             id: uuid(),
             type: "status_change",
-            description: `Offer from ${o.buyerName} marked ${status}`,
+            description: `Offer from ${o.buyerName} marked ${OFFER_STATUS_LABELS[status].toLowerCase()}`,
             actor,
             createdAt: new Date().toISOString(),
           });
@@ -930,10 +1092,8 @@ export const useTransactionsStore = create<TransactionsState>()(
         set((s) => {
           const f = s.files.find((x) => x.id === fileId);
           if (!f) return;
-          Object.assign(f, flags);
-          if (flags.referralPercentage !== undefined) f.financials.referralPercentage = flags.referralPercentage;
 
-          const answers: IntakeAnswers = {
+          const answersFor = (): IntakeAnswers => ({
             clientName: f.clientName,
             phone: f.phone,
             email: f.email,
@@ -942,28 +1102,40 @@ export const useTransactionsStore = create<TransactionsState>()(
             isReferral: f.isReferral,
             isRelocation: f.isRelocation,
             builtBefore1978: f.side === "listing" ? f.builtBefore1978 : undefined,
-          };
-          const target = generateChecklist(answers);
-          const targetIds = new Set(target.map((t) => t.id));
-          const existingIds = new Set(f.checklist.map((t) => t.id));
-
-          const kept = f.checklist.filter((t) => {
-            if (targetIds.has(t.id)) return true;
-            const started = t.status === "completed" || t.subtasks.some((st) => st.completed);
-            if (!started) removed.push(t.title);
-            return started;
           });
-          const fresh = target.filter((t) => !existingIds.has(t.id));
-          added = fresh.map((t) => t.title);
+          const beforeList = f.checklistOverridden ? generateChecklist(answersFor()) : [];
+          Object.assign(f, flags);
+          if (flags.referralPercentage !== undefined) f.financials.referralPercentage = flags.referralPercentage;
+          const answers = answersFor();
 
-          // Rebuild in template order so new tasks land in the right phase.
-          const byId = new Map([...kept, ...fresh].map((t) => [t.id, t]));
-          const ordered = target.map((t) => byId.get(t.id)!).filter(Boolean);
-          const orphans = kept.filter((t) => !targetIds.has(t.id));
-          f.checklist = [...ordered, ...orphans].map((t) => ({
-            ...t,
-            dependsOn: target.find((x) => x.id === t.id)?.dependsOn ?? t.dependsOn,
-          }));
+          if (f.checklistOverridden) {
+            const merged = mergeOverriddenChecklist(f.checklist, beforeList, generateChecklist(answers));
+            added = merged.added;
+            removed = merged.removed;
+            f.checklist = merged.checklist;
+          } else {
+            const target = generateChecklist(answers);
+            const targetIds = new Set(target.map((t) => t.id));
+            const existingIds = new Set(f.checklist.map((t) => t.id));
+
+            const kept = f.checklist.filter((t) => {
+              if (targetIds.has(t.id)) return true;
+              const started = t.status === "completed" || t.subtasks.some((st) => st.completed);
+              if (!started) removed.push(t.title);
+              return started;
+            });
+            const fresh = target.filter((t) => !existingIds.has(t.id));
+            added = fresh.map((t) => t.title);
+
+            // Rebuild in template order so new tasks land in the right phase.
+            const byId = new Map([...kept, ...fresh].map((t) => [t.id, t]));
+            const ordered = target.map((t) => byId.get(t.id)!).filter(Boolean);
+            const orphans = kept.filter((t) => !targetIds.has(t.id));
+            f.checklist = [...ordered, ...orphans].map((t) => ({
+              ...t,
+              dependsOn: target.find((x) => x.id === t.id)?.dependsOn ?? t.dependsOn,
+            }));
+          }
           recalculateChecklist(f);
 
           // Documents follow the same rule by name.
@@ -1112,7 +1284,7 @@ export const useTransactionsStore = create<TransactionsState>()(
        * documents from the completed answers while keeping the file's id,
        * notes, and activity history intact.
        */
-      completeIntake: (fileId, answers) => {
+      completeIntake: (fileId, answers, sequence) => {
         const existing = get().files.find((f) => f.id === fileId);
         if (!existing) return;
 
@@ -1127,6 +1299,8 @@ export const useTransactionsStore = create<TransactionsState>()(
           listPrice: existing.listPrice,
           isQuickLead: false,
           clientProfile: existing.clientProfile,
+          dealContacts: existing.dealContacts ?? emptyDealContacts(),
+          folderContext: existing.folderContext ?? emptyFolderContext(),
           cma: existing.cma,
           listingDetails: existing.listingDetails,
           propertyPrep: existing.propertyPrep,
@@ -1134,6 +1308,9 @@ export const useTransactionsStore = create<TransactionsState>()(
           showings: existing.showings,
           marketing: existing.marketing,
           buyerSearch: existing.buyerSearch,
+          ...(sequence
+            ? { checklist: sequence.checklist, checklistOverridden: sequence.overridden || undefined }
+            : {}),
         });
 
         set((s) => {
@@ -1143,7 +1320,9 @@ export const useTransactionsStore = create<TransactionsState>()(
             {
               id: uuid(),
               type: "status_change",
-              description: `Intake completed — checklist rebuilt with ${rebuilt.checklist.length} tasks`,
+              description: sequence?.overridden
+                ? `Intake completed — your task list was saved with ${rebuilt.checklist.length} tasks`
+                : `Intake completed — checklist rebuilt with ${rebuilt.checklist.length} tasks`,
               actor: "Demo Agent",
               createdAt: new Date().toISOString(),
             },
@@ -1155,7 +1334,9 @@ export const useTransactionsStore = create<TransactionsState>()(
 
         toast.success(
           "Intake completed",
-          `Checklist rebuilt with ${rebuilt.checklist.length} tasks for ${answers.clientName}`
+          sequence?.overridden
+            ? `Your task list was saved with ${rebuilt.checklist.length} tasks for ${answers.clientName}`
+            : `Checklist rebuilt with ${rebuilt.checklist.length} tasks for ${answers.clientName}`
         );
       },
 
@@ -1171,6 +1352,28 @@ export const useTransactionsStore = create<TransactionsState>()(
           pushWorkActivity(f, "profile_updated", "Client profile updated", actor);
         });
         toast.success("Profile saved", "Client details are on the file");
+      },
+
+      updateDealContacts: (fileId, contacts, actor = "Demo Agent") => {
+        set((s) => {
+          const f = s.files.find((x) => x.id === fileId);
+          if (!f) return;
+          f.dealContacts = contacts;
+          f.updatedAt = new Date().toISOString();
+          pushWorkActivity(f, "profile_updated", "Deal contacts updated", actor);
+        });
+        toast.success("Contacts saved", "The people on this deal are on the file");
+      },
+
+      updateFolderContext: (fileId, story, actor = "Demo Agent") => {
+        set((s) => {
+          const f = s.files.find((x) => x.id === fileId);
+          if (!f) return;
+          const next: FolderContext = { story: story.trim(), updatedAt: new Date().toISOString() };
+          f.folderContext = next;
+          pushWorkActivity(f, "profile_updated", "Folder context updated", actor);
+        });
+        toast.success("Context saved", "This note stays on this folder only");
       },
 
       updateCma: (fileId, updates, actor = "Demo Agent") => {
@@ -1295,6 +1498,12 @@ export const useTransactionsStore = create<TransactionsState>()(
           }
           pushWorkActivity(f, "agreement_updated", `Agreement updated: ${a.kind}`, actor);
         });
+        const updated = get().files.find((f) => f.id === fileId);
+        const end = updated ? listingTermEnd(updated) : undefined;
+        if (updated?.status === "expired" && end && !isDayAfterTerm(end, new Date())) {
+          get().updateFileStatus(fileId, "listed", actor);
+        }
+        get().applyExpiredListings();
         toast.success("Agreement saved", "Terms logged on the file");
       },
     })),

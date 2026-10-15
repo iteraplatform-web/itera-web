@@ -88,6 +88,17 @@ export const STATUS_THEME: Record<
     columnBg: "bg-emerald-50/60",
     columnAccent: "bg-emerald-500",
   },
+  expired: {
+    label: "Expired",
+    meaning: "gray",
+    dot: "bg-ink-500",
+    bg: "bg-ink-100",
+    border: "border-ink-300",
+    text: "text-ink-700",
+    solid: "bg-ink-500",
+    columnBg: "bg-ink-50",
+    columnAccent: "bg-ink-400",
+  },
   dropped: {
     label: "Dropped",
     meaning: "gray",
@@ -119,6 +130,7 @@ export const KANBAN_COLUMNS: TransactionStatus[] = [
   "in_progress",
   "under_contract",
   "closed",
+  "expired",
   "dropped",
   "terminated",
 ];

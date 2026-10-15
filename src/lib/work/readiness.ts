@@ -94,7 +94,7 @@ export function milestonesReadiness(milestones: MilestoneRecord[]): WorkReadines
 
 export function daysOnMarket(file: TransactionFile): number | null {
   if (file.side !== "listing") return null;
-  if (!["listed", "under_contract", "closed", "terminated"].includes(file.status)) return null;
+  if (!["listed", "under_contract", "closed", "terminated", "expired"].includes(file.status)) return null;
   const listedActivity = file.activity.find(
     (a) =>
       a.type === "listing_updated" &&
@@ -108,7 +108,7 @@ export function daysOnMarket(file: TransactionFile): number | null {
   const end =
     file.status === "closed" && file.closingDate
       ? new Date(file.closingDate)
-      : file.status === "under_contract" || file.status === "terminated"
+      : file.status === "under_contract" || file.status === "terminated" || file.status === "expired"
         ? new Date(file.updatedAt)
         : new Date();
   return Math.max(0, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));

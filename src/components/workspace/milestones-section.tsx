@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { format, parseISO } from "date-fns";
 import { FileSignature, Flag } from "lucide-react";
 import { useTransactionsStore } from "@/stores";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { SectionLabel } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { WorkInstructions, WorkStatusChip } from "@/components/workspace/work-ui";
 import { milestonesReadiness } from "@/lib/work/readiness";
+import { ExtendListingButton } from "@/components/workspace/extend-listing";
 import type {
   AgreementRecord,
   MilestoneRecord,
@@ -33,6 +35,7 @@ export function MilestonesSection({ file }: { file: TransactionFile }) {
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-3">
           <SectionLabel icon={FileSignature}>Agreements</SectionLabel>
+          {file.side === "listing" && <ExtendListingButton file={file} />}
         </div>
         <WorkInstructions
           title="Log agreement terms on the file"
@@ -118,7 +121,7 @@ function AgreementCard({
             )}
             <Input
               id={`${agreement.id}-comm`}
-              label="Commission %"
+              label={agreement.kind === "listing" ? "Selling agent %" : "Buyer agent %"}
               type="number"
               trailing="%"
               value={draft.commissionRate ? +(draft.commissionRate * 100).toFixed(2) : ""}
@@ -138,6 +141,24 @@ function AgreementCard({
             onChange={(e) => setDraft({ ...draft, referralPercentage: Number(e.target.value) })}
           />
         )}
+        {(agreement.kind === "listing" || agreement.kind === "buyer") && (
+          <>
+            <Input
+              id={`${agreement.id}-start`}
+              label="Term starts"
+              type="date"
+              value={toDateInput(draft.termStart)}
+              onChange={(e) => setDraft({ ...draft, termStart: fromDateInput(e.target.value) })}
+            />
+            <Input
+              id={`${agreement.id}-end`}
+              label="Term ends"
+              type="date"
+              value={toDateInput(draft.termEnd)}
+              onChange={(e) => setDraft({ ...draft, termEnd: fromDateInput(e.target.value) })}
+            />
+          </>
+        )}
         <Select
           id={`${agreement.id}-status`}
           label="Status"
@@ -150,6 +171,11 @@ function AgreementCard({
           <option value="sent">Sent for signature</option>
           <option value="executed">Executed</option>
         </Select>
+        {agreement.kind === "listing" && (
+          <p className="sm:col-span-2 text-[13px] leading-relaxed text-ink-500">
+            Once this agreement is executed, the file becomes Expired the day after the end date. A house that is under contract, sold, dropped, or canceled stays as it is.
+          </p>
+        )}
         <Textarea
           id={`${agreement.id}-notes`}
           label="Notes"
@@ -166,6 +192,21 @@ function AgreementCard({
       </div>
     </div>
   );
+}
+
+/** Calendar date for an `<input type="date">`, in the agent's local day. */
+function toDateInput(value?: string): string {
+  if (!value) return "";
+  const date = parseISO(value);
+  return Number.isNaN(date.getTime()) ? "" : format(date, "yyyy-MM-dd");
+}
+
+/** Noon local time, so the calendar day does not slip across midnight UTC. */
+function fromDateInput(value: string): string | undefined {
+  if (!value) return undefined;
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return undefined;
+  return new Date(year, month - 1, day, 12, 0, 0).toISOString();
 }
 
 function MilestoneCard({

@@ -683,11 +683,137 @@ export function generateChecklist(answers: IntakeAnswers, startDate = new Date()
   });
 }
 
+/** Shown on tasks the agent typed in on the review screen. */
+export const AGENT_ADDED_BECAUSE = "Added by you for this file";
+
+/** One row on the review screen, before the file is saved. */
+export interface SequenceDraftItem {
+  task: ChecklistTask;
+  included: boolean;
+  /** The wait the automatic list gave this task, so it can be put back. */
+  templateDependsOn: string[];
+}
+
+export interface SavedSequence {
+  checklist: ChecklistTask[];
+  overridden: boolean;
+}
+
+export function draftFromGenerated(tasks: ChecklistTask[]): SequenceDraftItem[] {
+  return tasks.map((task) => ({
+    task: {
+      ...task,
+      dependsOn: [...task.dependsOn],
+      subtasks: task.subtasks.map((s) => ({ ...s })),
+    },
+    included: true,
+    templateDependsOn: [...task.dependsOn],
+  }));
+}
+
+export function createAgentTask(title: string, phase: ChecklistPhase): ChecklistTask {
+  return {
+    id: `custom_${uuid()}`,
+    title: title.trim(),
+    description: "Added for this file before the checklist was saved",
+    phase,
+    status: "not_started",
+    dependsOn: [],
+    subtasks: [],
+    addedBecause: AGENT_ADDED_BECAUSE,
+  };
+}
+
+/**
+ * The list that will be saved. Tasks left off are dropped, and a wait that
+ * points at a left-off task is dropped too, so nothing stays locked on a
+ * task that is not on the file.
+ */
+export function finalizeSequence(generated: ChecklistTask[], draft: SequenceDraftItem[]): SavedSequence {
+  const included = draft.filter((item) => item.included);
+  const ids = new Set(included.map((item) => item.task.id));
+  const checklist = included.map((item) => ({
+    ...item.task,
+    dependsOn: item.task.dependsOn.filter((id) => ids.has(id)),
+  }));
+
+  const sameIds =
+    generated.length === checklist.length && generated.every((task, i) => task.id === checklist[i]?.id);
+  const sameDeps =
+    sameIds &&
+    generated.every((task, i) => task.dependsOn.join("\0") === checklist[i].dependsOn.join("\0"));
+
+  return { checklist, overridden: !(sameIds && sameDeps) };
+}
+
+function workStarted(task: ChecklistTask): boolean {
+  return task.status === "completed" || task.subtasks.some((s) => s.completed);
+}
+
+function insertNearTemplate(checklist: ChecklistTask[], template: ChecklistTask[], task: ChecklistTask): void {
+  const idx = template.findIndex((t) => t.id === task.id);
+  for (let i = idx - 1; i >= 0; i--) {
+    const anchor = checklist.findIndex((t) => t.id === template[i].id);
+    if (anchor !== -1) {
+      checklist.splice(anchor + 1, 0, task);
+      return;
+    }
+  }
+  for (let i = idx + 1; i < template.length; i++) {
+    const anchor = checklist.findIndex((t) => t.id === template[i].id);
+    if (anchor !== -1) {
+      checklist.splice(anchor, 0, task);
+      return;
+    }
+  }
+  checklist.push(task);
+}
+
+/**
+ * A file whose task list was edited keeps that order. Only tasks that
+ * appeared or disappeared because an answer changed are added or removed.
+ * Work already started stays.
+ */
+export function mergeOverriddenChecklist(
+  existing: ChecklistTask[],
+  before: ChecklistTask[],
+  after: ChecklistTask[]
+): { checklist: ChecklistTask[]; added: string[]; removed: string[] } {
+  const beforeIds = new Set(before.map((t) => t.id));
+  const afterIds = new Set(after.map((t) => t.id));
+  const appeared = after.filter((t) => !beforeIds.has(t.id));
+  const disappeared = new Set(before.filter((t) => !afterIds.has(t.id)).map((t) => t.id));
+
+  const removed: string[] = [];
+  const kept = existing.filter((task) => {
+    if (!disappeared.has(task.id)) return true;
+    if (workStarted(task)) return true;
+    removed.push(task.title);
+    return false;
+  });
+
+  const keptIds = new Set(kept.map((t) => t.id));
+  const fresh = appeared.filter((t) => !keptIds.has(t.id));
+  const checklist = [...kept];
+  for (const task of fresh) insertNearTemplate(checklist, after, task);
+
+  const ids = new Set(checklist.map((t) => t.id));
+  return {
+    checklist: checklist.map((task) => ({
+      ...task,
+      dependsOn: task.dependsOn.filter((id) => ids.has(id)),
+    })),
+    added: fresh.map((t) => t.title),
+    removed,
+  };
+}
+
 export function resolveTaskStatus(
   task: ChecklistTask,
   allTasks: ChecklistTask[]
 ): TaskStatus {
   if (task.status === "completed") return "completed";
+  if (task.subtasks.length > 0 && task.subtasks.every((s) => s.completed)) return "completed";
 
   const incompleteDeps = task.dependsOn.some((depId) => {
     const dep = allTasks.find((t) => t.id === depId);
@@ -1048,12 +1174,13 @@ export function getClientTimelineState(status: TransactionFile["status"]) {
     under_contract: 3,
     // A closed file is past every milestone, so all four read as done.
     closed: 5,
+    expired: 1,
     dropped: 0,
     terminated: 1,
   };
 
   const progress = reached[status];
-  const stalled = status === "dropped" || status === "terminated";
+  const stalled = status === "dropped" || status === "terminated" || status === "expired";
 
   return CLIENT_TIMELINE_STEPS.map((step, i) => {
     const position = i + 1;
@@ -1067,6 +1194,9 @@ export function getClientTimelineState(status: TransactionFile["status"]) {
 }
 
 export function getClientActionNeeded(file: TransactionFile): string | null {
+  if (file.status === "expired") {
+    return "Your listing agreement has ended.";
+  }
   if (file.status === "closed" || file.status === "dropped" || file.status === "terminated") {
     return null;
   }

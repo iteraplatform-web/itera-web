@@ -305,7 +305,7 @@ function FileFigures({ file }: { file: TransactionFile }) {
   return (
     <div className="space-y-0">
       <Figure label="Take-home" value={money(payout.net)} />
-      <Figure label="Closing" value={file.closingDate ? format(parseISO(file.closingDate), "MMM d") : "Not set"} />
+      <Figure label="Date of closing" value={file.closingDate ? format(parseISO(file.closingDate), "MMM d") : "Not set"} />
       <Figure label="Checklist" value={`${done}/${file.checklist.length}`} />
     </div>
   );

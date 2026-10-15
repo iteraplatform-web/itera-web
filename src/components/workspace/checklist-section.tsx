@@ -9,7 +9,6 @@ import {
   ChevronDown,
   Clock,
   Info,
-  Lock,
   Sparkles,
 } from "lucide-react";
 import { useTransactionsStore } from "@/stores";
@@ -81,6 +80,11 @@ export function ChecklistSection({ file, focus }: { file: TransactionFile; focus
 
   return (
     <div className="space-y-5">
+      {file.checklistOverridden && (
+        <p className="rounded-xl bg-ink-100 px-4 py-2.5 text-[14px] text-ink-700">
+          This file uses the task list you set before it was saved.
+        </p>
+      )}
       {/* ── Phase rail ────────────────────────────────────────── */}
       <div className="rounded-2xl border border-hairline bg-canvas/70 p-4">
         <div className="mb-3 flex items-center justify-between">
@@ -243,27 +247,24 @@ function TaskRow({
       <div className="flex items-start gap-3 p-4">
         {/* Checkbox / lock */}
         <div className="mt-0.5 shrink-0">
-          {isBlocked ? (
-            <span
-              className="flex h-7 w-7 items-center justify-center rounded-lg bg-ink-100 ring-1 ring-inset ring-ink-200"
-              title="Waiting on an earlier task"
-            >
-              <Lock className="h-3 w-3 text-ink-500" />
-            </span>
-          ) : (
-            <button
-              onClick={onToggleTask}
-              aria-label={isCompleted ? `Reopen ${task.title}` : `Complete ${task.title}`}
-              className={cn(
-                "flex h-7 w-7 items-center justify-center rounded-lg transition-all active:scale-90",
-                isCompleted
-                  ? "bg-emerald-500 text-white shadow-xs hover:bg-emerald-600"
-                  : "bg-surface ring-1 ring-inset ring-ink-300 hover:ring-2 hover:ring-itera-500"
-              )}
-            >
-              {isCompleted && <Check className="h-4 w-4" strokeWidth={3} />}
-            </button>
-          )}
+          <button
+            onClick={onToggleTask}
+            aria-label={
+              isCompleted
+                ? `Reopen ${task.title}`
+                : isBlocked
+                  ? `Mark ${task.title} done even though an earlier task is open`
+                  : `Complete ${task.title}`
+            }
+            className={cn(
+              "flex h-7 w-7 items-center justify-center rounded-lg transition-all active:scale-90",
+              isCompleted
+                ? "bg-emerald-500 text-white shadow-xs hover:bg-emerald-600"
+                : "bg-surface ring-1 ring-inset ring-ink-300 hover:ring-2 hover:ring-itera-500"
+            )}
+          >
+            {isCompleted && <Check className="h-4 w-4" strokeWidth={3} />}
+          </button>
         </div>
 
         <div className="min-w-0 flex-1">
@@ -313,10 +314,11 @@ function TaskRow({
             <p className="mt-2 inline-flex items-start gap-1.5 rounded-lg bg-ink-100 px-2.5 py-1 text-[13px] text-ink-500">
               <Info className="mt-px h-3 w-3 shrink-0" />
               <span>
-                Waiting on{" "}
+                Still waiting on{" "}
                 <span className="font-semibold text-ink-700">
                   {blockers.map((b) => b.title).join(" and ")}
                 </span>
+                . You can mark this done anyway.
               </span>
             </p>
           )}
@@ -330,7 +332,7 @@ function TaskRow({
                 </Button>
               </Link>
               {isBlocked && (
-                <span className="ml-3 text-[13px] text-ink-500">You can prepare this now; it unlocks when the earlier task is done.</span>
+                <span className="ml-3 text-[13px] text-ink-500">An earlier task is still open. You can still mark this one done.</span>
               )}
             </div>
           )}
@@ -379,7 +381,7 @@ function TaskRow({
                       <label
                         className={cn(
                           "flex items-start gap-2.5 rounded-lg px-2 py-1.5 text-[14px]",
-                          isBlocked ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-canvas"
+                          "cursor-pointer hover:bg-canvas"
                         )}
                       >
                         <span
@@ -395,7 +397,6 @@ function TaskRow({
                         <input
                           type="checkbox"
                           checked={sub.completed}
-                          disabled={isBlocked}
                           onChange={() => onToggleSubtask(sub.id)}
                           className="sr-only"
                         />

@@ -205,6 +205,7 @@ const PHASES_DONE_BY_STATUS: Record<string, ChecklistTask["phase"][]> = {
   in_progress: ["intake"],
   under_contract: ["intake", "listing_prep", "marketing", "offers"],
   closed: ["intake", "listing_prep", "marketing", "offers", "under_contract", "closing", "post_close"],
+  expired: ["intake", "listing_prep", "marketing"],
   dropped: [],
   terminated: ["intake", "listing_prep", "marketing", "offers"],
 };

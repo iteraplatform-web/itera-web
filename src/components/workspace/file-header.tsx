@@ -112,7 +112,7 @@ export function FileHeader({ file, onStatusChange }: FileHeaderProps) {
               {file.closingDate && (
                 <Meta
                   icon={Calendar}
-                  value={`Closes ${formatDate(file.closingDate, "MMM d, yyyy")}`}
+                  value={`Date of closing ${formatDate(file.closingDate, "MMM d, yyyy")}`}
                 />
               )}
               {file.leadSource && <Meta icon={Tag} value={file.leadSource} />}

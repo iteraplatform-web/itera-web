@@ -4,6 +4,9 @@ import type {
   BuyerSearchWork,
   ClientProfileWork,
   CmaWork,
+  DealContact,
+  DealContacts,
+  FolderContext,
   IntakeAnswers,
   ListingDetailsWork,
   MarketingWork,
@@ -14,6 +17,22 @@ import type {
   TransactionFile,
   TransactionSide,
 } from "@/types";
+
+export function emptyDealContact(): DealContact {
+  return { name: "", phone: "", email: "", organization: "" };
+}
+
+export function emptyDealContacts(): DealContacts {
+  return {
+    otherAgent: emptyDealContact(),
+    lender: emptyDealContact(),
+    closingRep: emptyDealContact(),
+  };
+}
+
+export function emptyFolderContext(): FolderContext {
+  return { story: "" };
+}
 
 export function emptyClientProfile(answers?: Partial<IntakeAnswers>): ClientProfileWork {
   return {
@@ -183,6 +202,8 @@ export function defaultAgreements(answers: IntakeAnswers): AgreementRecord[] {
 export function createDefaultWorkFields(answers: IntakeAnswers): Pick<
   TransactionFile,
   | "clientProfile"
+  | "dealContacts"
+  | "folderContext"
   | "cma"
   | "listingDetails"
   | "propertyPrep"
@@ -198,6 +219,8 @@ export function createDefaultWorkFields(answers: IntakeAnswers): Pick<
 > {
   return {
     clientProfile: emptyClientProfile(answers),
+    dealContacts: emptyDealContacts(),
+    folderContext: emptyFolderContext(),
     cma: emptyCma(),
     listingDetails: emptyListingDetails(),
     propertyPrep: emptyPropertyPrep(),
@@ -234,6 +257,15 @@ export function ensureWorkFields(file: TransactionFile): TransactionFile {
     ...file,
     preferredContactTime: file.preferredContactTime ?? "",
     clientProfile: file.clientProfile ?? defaults.clientProfile,
+    dealContacts: {
+      otherAgent: { ...defaults.dealContacts.otherAgent, ...file.dealContacts?.otherAgent },
+      lender: { ...defaults.dealContacts.lender, ...file.dealContacts?.lender },
+      closingRep: { ...defaults.dealContacts.closingRep, ...file.dealContacts?.closingRep },
+    },
+    folderContext: {
+      story: file.folderContext?.story ?? "",
+      updatedAt: file.folderContext?.updatedAt,
+    },
     cma: file.cma ?? defaults.cma,
     listingDetails: file.listingDetails ?? defaults.listingDetails,
     propertyPrep: file.propertyPrep ?? defaults.propertyPrep,

@@ -43,16 +43,22 @@ export function ClientProgress({ file }: { file: TransactionFile }) {
   const current = getClientStage(file);
   const updates = getClientUpdates(file, 30);
   const side = file.side;
+  const expired = file.status === "expired";
 
   return (
     <div>
       <PageTitle title="Your progress" sub="Every milestone from start to keys, and what each one means for you." />
+      {expired && (
+        <p className="mb-4 rounded-2xl border border-hairline bg-surface px-5 py-4 text-[16px] text-ink-700">
+          Your listing agreement has ended. Your agent will talk with you about what comes next.
+        </p>
+      )}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
         <div className="space-y-5">
           {STAGE_ORDER.map((stage, si) => {
             const items = milestones.filter((m) => m.stage === stage);
             const doneAll = items.length > 0 && items.every((m) => m.state === "done");
-            const isCurrent = stage === current && file.status !== "closed";
+            const isCurrent = stage === current && file.status !== "closed" && !expired;
             return (
               <section
                 key={stage}
@@ -382,9 +388,15 @@ export function ClientHelp({ file }: { file: TransactionFile }) {
       <PageTitle title="Help" sub="Plain answers to the questions most people ask." />
       <div className="space-y-6">
         <PCard title="Where you are right now">
+          {file.status === "expired" ? (
+            <p className="text-[18px] font-semibold text-ink-950">Your listing agreement has ended</p>
+          ) : (
+            <>
           <p className="text-[18px] font-semibold text-ink-950">{STAGE_INFO[stage][file.side]}</p>
           <p className="mt-1 text-[16px] leading-relaxed text-ink-600">{STAGE_INFO[stage].blurb[file.side]}</p>
-          {nowItems.length > 0 && (
+            </>
+          )}
+          {file.status !== "expired" && nowItems.length > 0 && (
             <>
               <p className="mt-4 text-[15px] font-semibold text-ink-800">Happening now:</p>
               <ul className="mt-2 space-y-2">

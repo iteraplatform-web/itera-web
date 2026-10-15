@@ -195,12 +195,15 @@ export function sellerNet(input: {
   buyerAgentPct: number;
   closingCostsPct: number;
   payoff: number;
+  /** Cash the seller gives the buyer at closing. */
+  concession?: number;
 }) {
   const listingCommission = input.price * (input.listingCommissionPct / 100);
   const buyerAgent = input.price * (input.buyerAgentPct / 100);
   const closingCosts = input.price * (input.closingCostsPct / 100);
-  const net = input.price - listingCommission - buyerAgent - closingCosts - input.payoff;
-  return { listingCommission, buyerAgent, closingCosts, net };
+  const concession = input.concession ?? 0;
+  const net = input.price - listingCommission - buyerAgent - closingCosts - input.payoff - concession;
+  return { listingCommission, buyerAgent, closingCosts, concession, net };
 }
 
 /** Standard amortising loan payment, principal and interest. */
@@ -219,13 +222,16 @@ export function buyerCashToClose(input: {
   earnestMoney: number;
   ratePct: number;
   taxInsuranceMonthly: number;
+  /** Cash the seller gives the buyer at closing. */
+  concession?: number;
 }) {
   const down = input.price * (input.downPct / 100);
   const loan = input.price - down;
   const closingCosts = input.price * (input.closingCostsPct / 100);
-  const cashToClose = down + closingCosts - input.earnestMoney;
+  const concession = input.concession ?? 0;
+  const cashToClose = down + closingCosts - input.earnestMoney - concession;
   const pi = monthlyPayment(loan, input.ratePct, 30);
-  return { down, loan, closingCosts, cashToClose, principalInterest: pi, monthlyTotal: pi + input.taxInsuranceMonthly };
+  return { down, loan, closingCosts, concession, cashToClose, principalInterest: pi, monthlyTotal: pi + input.taxInsuranceMonthly };
 }
 
 /* ── Help ────────────────────────────────────────────────────────────── */

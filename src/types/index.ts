@@ -5,6 +5,7 @@ export type TransactionStatus =
   | "in_progress"
   | "under_contract"
   | "closed"
+  | "expired"
   | "dropped"
   | "terminated";
 
@@ -65,7 +66,7 @@ export interface User {
   brokerage?: string;
   markets?: string[];
   onboarded: boolean;
-  /** The agent's share of gross commission after the brokerage split, e.g. 80. */
+  /** The agent's share of gross compensation after the brokerage split, e.g. 80. */
   agentSplit?: number;
   /** Flat per-transaction fee charged by the brokerage. */
   transactionFee?: number;
@@ -222,6 +223,14 @@ export interface ActivityEntry {
 
 export type OfferStatus = "pending" | "accepted" | "rejected" | "countered";
 
+/** Plain words for each offer step. "pending" is the offered step. */
+export const OFFER_STATUS_LABELS: Record<OfferStatus, string> = {
+  pending: "Offered",
+  countered: "Countered",
+  accepted: "Accepted",
+  rejected: "Declined",
+};
+
 export type FinancingType = "cash" | "conventional" | "fha" | "va" | "other";
 
 export const FINANCING_LABELS: Record<FinancingType, string> = {
@@ -234,15 +243,29 @@ export const FINANCING_LABELS: Record<FinancingType, string> = {
 
 export interface Offer {
   id: string;
-  /** The buyer or buyer's agent the offer came from. */
+  /** The buyer the offer came from. */
   buyerName: string;
   amount: number;
   earnestMoney?: number;
   financing: FinancingType;
   /** Free-text contingencies, e.g. "Inspection, Financing, Appraisal". */
   contingencies?: string;
+  /** Cash the seller gives the buyer at closing, usually for closing costs. */
+  concession?: number;
+  /** Selling agent's pay rate, stored as a decimal (0.025 is 2.5%). */
+  sellingAgentRate?: number;
+  /** Buyer agent's pay rate, stored as a decimal. Separate from the selling agent. */
+  buyerAgentRate?: number;
+  /** An extra promise, such as a home warranty. This is not agent pay. */
+  incentives?: string;
+  /** Date of acceptance. The day the seller said yes. */
+  acceptedAt?: string;
+  /** Date of the counter. Kept even if the offer is accepted later. */
+  counteredAt?: string;
+  /** Date of closing named on this offer. */
   proposedClosingDate?: string;
   notes?: string;
+  /** Date of offer. The day this offer arrived. */
   receivedAt: string;
   status: OfferStatus;
 }
@@ -253,9 +276,40 @@ export interface Financials {
   earnestMoney: number;
   earnestMoneyStatus: EarnestMoneyStatus;
   referralPercentage?: number;
+  /** Dollars the agent gives back to their own client from the agent's pay. */
+  rebate?: number;
 }
 
 /* ── Listing / buyer work records (system of record) ─────────────────── */
+
+/** Someone on the deal besides your own client. */
+export interface DealContact {
+  name: string;
+  phone: string;
+  email: string;
+  /** Brokerage for an agent. Company for the lender and the closing rep. */
+  organization: string;
+}
+
+/**
+ * The other people on this folder.
+ * On a listing, otherAgent is the buyer's agent.
+ * On a buyer file, otherAgent is the listing agent.
+ */
+export interface DealContacts {
+  otherAgent: DealContact;
+  lender: DealContact;
+  closingRep: DealContact;
+}
+
+/**
+ * The short story of this folder only.
+ * Saving it does not change the client profile.
+ */
+export interface FolderContext {
+  story: string;
+  updatedAt?: string;
+}
 
 export interface ClientProfileWork {
   relationshipHistory: string;
@@ -463,6 +517,12 @@ export interface TransactionFile {
   createdAt: string;
   updatedAt: string;
   checklist: ChecklistTask[];
+  /**
+   * The agent changed this file's task list on the review screen before it
+   * was saved. Later answer changes add or remove only the tasks those
+   * answers own, and leave this order in place.
+   */
+  checklistOverridden?: boolean;
   documents: Document[];
   sentEmails: SentEmail[];
   messages: Message[];
@@ -471,6 +531,8 @@ export interface TransactionFile {
   offers: Offer[];
   financials: Financials;
   clientProfile: ClientProfileWork;
+  dealContacts: DealContacts;
+  folderContext: FolderContext;
   cma: CmaWork;
   listingDetails: ListingDetailsWork;
   propertyPrep: PropertyPrepWork;
@@ -594,6 +656,7 @@ export const STATUS_LABELS: Record<TransactionStatus, string> = {
   in_progress: "In Progress",
   under_contract: "Under Contract",
   closed: "Closed",
+  expired: "Expired",
   dropped: "Dropped",
   terminated: "Terminated",
 };

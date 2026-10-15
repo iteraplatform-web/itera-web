@@ -10,7 +10,6 @@ import {
   ClipboardList,
   FileText,
   Home,
-  Lock,
   Search,
   Sparkles,
   User,
@@ -20,15 +19,23 @@ import { AuthGuard } from "@/components/layout/auth-guard";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { CallNotesAssist } from "@/components/intake/call-notes-assist";
 import { ReferralPdfAssist } from "@/components/intake/referral-pdf-assist";
 import { BuildProgress } from "@/components/intake/build-progress";
 import { useAuthStore, useTransactionsStore } from "@/stores";
-import { generateChecklist, generateDocuments } from "@/lib/checklist/engine";
+import {
+  AGENT_ADDED_BECAUSE,
+  draftFromGenerated,
+  finalizeSequence,
+  generateChecklist,
+  generateDocuments,
+  type SequenceDraftItem,
+} from "@/lib/checklist/engine";
+import { SequenceOverride } from "@/components/intake/sequence-override";
 import type { ReferralProfile } from "@/lib/referral/form";
-import { PHASE_LABELS, type IntakeAnswers, type TransactionSide } from "@/types";
+import type { IntakeAnswers, TransactionSide } from "@/types";
 import { cn } from "@/lib/utils/cn";
+import { emailError, formatPhone, formatPhoneTyping, phoneError, PHONE_PLACEHOLDER } from "@/lib/utils/contact";
 
 const STEPS = [
   { id: 1, label: "Client", icon: User },
@@ -58,12 +65,17 @@ function NewFileContent() {
   const createFile = useTransactionsStore((s) => s.createFile);
   const createQuickLead = useTransactionsStore((s) => s.createQuickLead);
   const completeIntake = useTransactionsStore((s) => s.completeIntake);
-  const updateClientProfile = useTransactionsStore((s) => s.updateClientProfile);
+  const updateClientProfile = useTransactionsStore(
+    (s) => s.updateClientProfile,
+  );
   const addNote = useTransactionsStore((s) => s.addNote);
   const user = useAuthStore((s) => s.user);
 
   const [step, setStep] = useState(1);
-  const [profileDraft, setProfileDraft] = useState<ReferralProfile | null>(null);
+  const [showContactErrors, setShowContactErrors] = useState(false);
+  const [profileDraft, setProfileDraft] = useState<ReferralProfile | null>(
+    null,
+  );
   const [customNote, setCustomNote] = useState("");
   const [form, setForm] = useState<Partial<IntakeAnswers>>({
     side: "listing",
@@ -89,9 +101,16 @@ function NewFileContent() {
     setForm((prev) => ({ ...prev, [field]: value }));
 
   const applyExtracted = (values: Partial<IntakeAnswers>) =>
-    setForm((prev) => ({ ...prev, ...values }));
+    setForm((prev) => ({
+      ...prev,
+      ...values,
+      ...(typeof values.phone === "string" ? { phone: formatPhone(values.phone) } : {}),
+    }));
 
-  const applyReferral = (values: Partial<IntakeAnswers>, profile: ReferralProfile | null) => {
+  const applyReferral = (
+    values: Partial<IntakeAnswers>,
+    profile: ReferralProfile | null,
+  ) => {
     applyExtracted(values);
     setProfileDraft(profile);
   };
@@ -110,7 +129,11 @@ function NewFileContent() {
   const afterCreate = (fileId: string) => {
     saveProfile(fileId);
     saveNote(fileId);
-    const tab = customNote.trim() ? "notes" : profileDraft ? "client_profile" : "";
+    const tab = customNote.trim()
+      ? "notes"
+      : profileDraft
+        ? "client_profile"
+        : "";
     router.push(`/files/${fileId}?welcome=1${tab ? `&tab=${tab}` : ""}`);
   };
 
@@ -124,7 +147,8 @@ function NewFileContent() {
       propertyAddress: form.propertyAddress ?? "",
       isReferral: form.isReferral ?? false,
       isRelocation: form.isRelocation ?? false,
-      builtBefore1978: form.side === "listing" ? form.builtBefore1978 : undefined,
+      builtBefore1978:
+        form.side === "listing" ? form.builtBefore1978 : undefined,
       referralSource: form.isReferral ? form.referralSource : undefined,
       referralPercentage: form.isReferral ? form.referralPercentage : undefined,
       leadSource: form.leadSource,
@@ -135,51 +159,105 @@ function NewFileContent() {
       preferredContact: form.preferredContact,
       preferredContactTime: form.preferredContactTime,
     }),
-    [form]
+    [form],
   );
 
   const preview = useMemo(() => {
     if (step !== 4 || !answers.clientName) return { tasks: [], docs: [] };
-    return { tasks: generateChecklist(answers), docs: generateDocuments(answers) };
+    return {
+      tasks: generateChecklist(answers),
+      docs: generateDocuments(answers),
+    };
   }, [step, answers]);
 
-  const conditionalTasks = preview.tasks.filter((t) => t.addedBecause);
-
   const [building, setBuilding] = useState(false);
+  const [draft, setDraft] = useState<{
+    signature: string;
+    items: SequenceDraftItem[];
+  } | null>(null);
+
+  const signature = preview.tasks.map((t) => t.id).join("|");
+  const sequenceItems =
+    preview.tasks.length === 0
+      ? (draft?.items ?? [])
+      : draft?.signature === signature
+        ? draft.items
+        : draftFromGenerated(preview.tasks);
+  const sequence = finalizeSequence(preview.tasks, sequenceItems);
+  const chosen = preview.tasks.length ? sequence.checklist : [];
+  const conditionalTasks = chosen.filter(
+    (t) => t.addedBecause && t.addedBecause !== AGENT_ADDED_BECAUSE,
+  );
 
   const buildSteps = useMemo(() => {
-    const tasks = preview.tasks;
-    const conditional = tasks.filter((t) => t.addedBecause);
-    const withDeps = tasks.filter((t) => t.dependsOn.length > 0).length;
-    const steps = tasks.reduce((n, t) => n + t.subtasks.length, 0);
+    const conditional = chosen.filter(
+      (t) => t.addedBecause && t.addedBecause !== AGENT_ADDED_BECAUSE,
+    );
+    const withDeps = chosen.filter((t) => t.dependsOn.length > 0).length;
+    const steps = chosen.reduce((n, t) => n + t.subtasks.length, 0);
     return [
-      { label: "Reading your answers", detail: `${answers.side === "listing" ? "Listing" : "Buyer"} file for ${answers.clientName}` },
-      { label: "Choosing the tasks that apply", detail: `${tasks.length} tasks, ${steps} individual steps` },
+      {
+        label: "Reading your answers",
+        detail: `${answers.side === "listing" ? "Listing" : "Buyer"} file for ${answers.clientName}`,
+      },
+      {
+        label: "Choosing the tasks that apply",
+        detail: `${chosen.length} tasks, ${steps} individual steps`,
+      },
       {
         label: "Adding tasks for this situation",
-        detail: conditional.length ? conditional.map((t) => t.title).join(", ") : "No special cases on this file",
+        detail: conditional.length
+          ? conditional.map((t) => t.title).join(", ")
+          : "No special cases on this file",
       },
-      { label: "Putting tasks in order", detail: `${withDeps} tasks wait on an earlier one` },
+      {
+        label: "Putting tasks in order",
+        detail: sequence.overridden
+          ? "Using the order you set for this file"
+          : `${withDeps} tasks wait on an earlier one`,
+      },
       { label: "Setting deadlines", detail: "Each task dated from today" },
-      { label: "Listing the paperwork you'll need", detail: `${preview.docs.length} documents to collect` },
+      {
+        label: "Listing the paperwork you'll need",
+        detail: `${preview.docs.length} documents to collect`,
+      },
     ];
-  }, [preview, answers.side, answers.clientName]);
+  }, [
+    chosen,
+    preview.docs.length,
+    answers.side,
+    answers.clientName,
+    sequence.overridden,
+  ]);
 
   const finishBuild = () => {
     if (completingId) {
-      completeIntake(completingId, answers);
+      completeIntake(completingId, answers, sequence);
       afterCreate(completingId);
       return;
     }
-    afterCreate(createFile(answers));
+    afterCreate(createFile(answers, sequence));
   };
 
   const handleSubmit = () => setBuilding(true);
 
+  const phoneMessage = phoneError(form.phone ?? "");
+  const emailMessage = emailError(form.email ?? "");
+
   const canProceed = () => {
-    if (step === 1) return Boolean(form.clientName && form.phone && form.email);
+    if (step === 1) {
+      return Boolean(form.clientName?.trim()) && !phoneMessage && !emailMessage;
+    }
     if (step === 2) return Boolean(form.propertyAddress);
     return true;
+  };
+
+  const goNext = () => {
+    if (step === 1 && !canProceed()) {
+      setShowContactErrors(true);
+      return;
+    }
+    setStep(step + 1);
   };
 
   if (isQuickLead) {
@@ -187,7 +265,12 @@ function NewFileContent() {
   }
 
   return (
-    <AppShell crumbs={[{ label: "Home", href: "/dashboard" }, { label: completingId ? "Complete intake" : "New file" }]}>
+    <AppShell
+      crumbs={[
+        { label: "Home", href: "/dashboard" },
+        { label: completingId ? "Complete intake" : "New file" },
+      ]}
+    >
       {building && <BuildProgress steps={buildSteps} onDone={finishBuild} />}
       <div className="mx-auto max-w-3xl">
         <Link
@@ -203,7 +286,8 @@ function NewFileContent() {
             {completingId ? "Complete the intake" : "New listing or buyer file"}
           </h1>
           <p className="mx-auto mt-2 max-w-md text-[15px] leading-relaxed text-ink-500">
-            Eight guided questions. The checklist assembles itself around the answers.
+            Eight guided questions. The checklist assembles itself around the
+            answers.
           </p>
         </div>
 
@@ -220,16 +304,21 @@ function NewFileContent() {
                   className={cn(
                     "flex h-9 w-9 items-center justify-center rounded-full text-[14px] font-bold transition-all",
                     step > s.id && "bg-emerald-500 text-white",
-                    step === s.id && "bg-ink-950 text-white ring-4 ring-ink-950/10",
-                    step < s.id && "bg-ink-100 text-ink-400"
+                    step === s.id &&
+                      "bg-ink-950 text-white ring-4 ring-ink-950/10",
+                    step < s.id && "bg-ink-100 text-ink-400",
                   )}
                 >
-                  {step > s.id ? <Check className="h-4 w-4" strokeWidth={3} /> : <s.icon className="h-4 w-4" />}
+                  {step > s.id ? (
+                    <Check className="h-4 w-4" strokeWidth={3} />
+                  ) : (
+                    <s.icon className="h-4 w-4" />
+                  )}
                 </span>
                 <span
                   className={cn(
                     "text-[13px] font-semibold",
-                    step >= s.id ? "text-ink-800" : "text-ink-400"
+                    step >= s.id ? "text-ink-800" : "text-ink-400",
                   )}
                 >
                   {s.label}
@@ -239,7 +328,7 @@ function NewFileContent() {
                 <span
                   className={cn(
                     "mx-2 mb-5 h-0.5 w-10 rounded-full sm:w-16",
-                    step > s.id ? "bg-emerald-500" : "bg-ink-200"
+                    step > s.id ? "bg-emerald-500" : "bg-ink-200",
                   )}
                 />
               )}
@@ -271,17 +360,34 @@ function NewFileContent() {
                     id="phone"
                     label="Phone number *"
                     type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
                     value={form.phone ?? ""}
-                    onChange={(e) => update("phone", e.target.value)}
-                    placeholder="(555) 234-5678"
+                    onChange={(e) => update("phone", formatPhoneTyping(e.target.value, form.phone ?? ""))}
+                    onBlur={() => setShowContactErrors(true)}
+                    placeholder={PHONE_PLACEHOLDER}
+                    maxLength={PHONE_PLACEHOLDER.length}
+                    error={
+                      (form.phone ?? "").trim() || showContactErrors
+                        ? phoneMessage
+                        : undefined
+                    }
                   />
                   <Input
                     id="email"
                     label="Email address *"
                     type="email"
+                    inputMode="email"
+                    autoComplete="email"
                     value={form.email ?? ""}
                     onChange={(e) => update("email", e.target.value)}
+                    onBlur={() => setShowContactErrors(true)}
                     placeholder="sarah@email.com"
+                    error={
+                      (form.email ?? "").trim() || showContactErrors
+                        ? emailMessage
+                        : undefined
+                    }
                   />
                 </div>
               </div>
@@ -304,8 +410,18 @@ function NewFileContent() {
                 <div className="grid grid-cols-2 gap-3">
                   {(
                     [
-                      { value: "listing", label: "Listing", icon: Home, blurb: "Selling a property" },
-                      { value: "buying", label: "Buying", icon: Search, blurb: "Representing a buyer" },
+                      {
+                        value: "listing",
+                        label: "Listing",
+                        icon: Home,
+                        blurb: "Selling a property",
+                      },
+                      {
+                        value: "buying",
+                        label: "Buying",
+                        icon: Search,
+                        blurb: "Representing a buyer",
+                      },
                     ] as const
                   ).map((option) => (
                     <button
@@ -316,20 +432,26 @@ function NewFileContent() {
                         "rounded-xl border-2 p-4 text-left transition-all",
                         form.side === option.value
                           ? "border-ink-950 bg-ink-950 text-white"
-                          : "border-hairline bg-surface hover:border-hairline-strong"
+                          : "border-hairline bg-surface hover:border-hairline-strong",
                       )}
                     >
                       <option.icon
                         className={cn(
                           "h-4 w-4",
-                          form.side === option.value ? "text-white" : "text-ink-500"
+                          form.side === option.value
+                            ? "text-white"
+                            : "text-ink-500",
                         )}
                       />
-                      <p className="mt-2 text-[15px] font-semibold">{option.label}</p>
+                      <p className="mt-2 text-[15px] font-semibold">
+                        {option.label}
+                      </p>
                       <p
                         className={cn(
                           "mt-0.5 text-[13px]",
-                          form.side === option.value ? "text-ink-300" : "text-ink-500"
+                          form.side === option.value
+                            ? "text-ink-300"
+                            : "text-ink-500",
                         )}
                       >
                         {option.blurb}
@@ -341,7 +463,11 @@ function NewFileContent() {
 
               <Input
                 id="propertyAddress"
-                label={form.side === "buying" ? "Search criteria *" : "Property address *"}
+                label={
+                  form.side === "buying"
+                    ? "Search criteria *"
+                    : "Property address *"
+                }
                 value={form.propertyAddress ?? ""}
                 onChange={(e) => update("propertyAddress", e.target.value)}
                 placeholder={
@@ -410,7 +536,9 @@ function NewFileContent() {
                     type="number"
                     trailing="%"
                     value={form.referralPercentage ?? ""}
-                    onChange={(e) => update("referralPercentage", Number(e.target.value))}
+                    onChange={(e) =>
+                      update("referralPercentage", Number(e.target.value))
+                    }
                     placeholder="25"
                   />
                 </div>
@@ -470,7 +598,9 @@ function NewFileContent() {
                   id="preferredContactTime"
                   label="Best time to reach them"
                   value={form.preferredContactTime ?? ""}
-                  onChange={(e) => update("preferredContactTime", e.target.value)}
+                  onChange={(e) =>
+                    update("preferredContactTime", e.target.value)
+                  }
                   placeholder="Evenings after 6pm"
                 />
               </div>
@@ -481,43 +611,57 @@ function NewFileContent() {
             <div className="animate-fade-in space-y-5">
               <StepHeading
                 title="Here's what will be created"
-                blurb="Built from your answers, not from a fixed template."
+                blurb="Built from your answers. Change this file's list before it is saved. Every other file still gets the automatic list."
               />
 
               {profileDraft && (
                 <div className="rounded-2xl border border-itera-200 bg-itera-50/60 p-4">
-                  <p className="text-[14px] font-semibold text-ink-950">Client profile from the referral form</p>
-                  <p className="mt-1 text-[14px] leading-relaxed text-ink-700">{profileDraft.relationshipHistory}</p>
+                  <p className="text-[14px] font-semibold text-ink-950">
+                    Client profile from the referral form
+                  </p>
+                  <p className="mt-1 text-[14px] leading-relaxed text-ink-700">
+                    {profileDraft.relationshipHistory}
+                  </p>
                   <p className="mt-2 text-[13px] text-ink-500">
-                    Goals: {profileDraft.goals} Timeline: {profileDraft.timeline}
+                    Goals: {profileDraft.goals} Timeline:{" "}
+                    {profileDraft.timeline}
                   </p>
                 </div>
               )}
 
               <dl className="grid gap-px overflow-hidden rounded-xl border border-hairline bg-hairline sm:grid-cols-2">
                 <Summary label="Client" value={answers.clientName} />
-                <Summary label="Type" value={answers.side === "listing" ? "Listing" : "Buyer"} />
+                <Summary
+                  label="Type"
+                  value={answers.side === "listing" ? "Listing" : "Buyer"}
+                />
                 <Summary
                   label={answers.side === "listing" ? "Property" : "Criteria"}
                   value={answers.propertyAddress}
                 />
                 <Summary label="Contact" value={answers.phone} />
-                {customNote.trim() && <Summary label="Note" value={customNote.trim()} />}
+                {customNote.trim() && (
+                  <Summary label="Note" value={customNote.trim()} />
+                )}
                 {answers.isReferral && (
                   <Summary
                     label="Referral"
                     value={`Yes${answers.referralPercentage ? ` · ${answers.referralPercentage}%` : ""}`}
                   />
                 )}
-                {answers.isRelocation && <Summary label="Relocation" value="Yes" />}
-                {answers.builtBefore1978 && <Summary label="Built" value="Before 1978" />}
+                {answers.isRelocation && (
+                  <Summary label="Relocation" value="Yes" />
+                )}
+                {answers.builtBefore1978 && (
+                  <Summary label="Built" value="Before 1978" />
+                )}
               </dl>
 
               {/* Headline outcome */}
               <div className="grid gap-3 sm:grid-cols-3">
-                <Stat value={preview.tasks.length} label="Checklist tasks" />
+                <Stat value={chosen.length} label="Checklist tasks" />
                 <Stat
-                  value={preview.tasks.reduce((n, t) => n + t.subtasks.length, 0)}
+                  value={chosen.reduce((n, t) => n + t.subtasks.length, 0)}
                   label="Individual steps"
                 />
                 <Stat value={preview.docs.length} label="Documents expected" />
@@ -529,15 +673,24 @@ function NewFileContent() {
                   <p className="flex items-center gap-2 text-[14px] font-semibold text-ink-900">
                     <Sparkles className="h-3.5 w-3.5" />
                     {conditionalTasks.length} task
-                    {conditionalTasks.length === 1 ? "" : "s"} added because of your answers
+                    {conditionalTasks.length === 1 ? "" : "s"} added because of
+                    your answers
                   </p>
                   <ul className="mt-2.5 space-y-1.5">
                     {conditionalTasks.map((t) => (
-                      <li key={t.id} className="flex items-start gap-2 text-[14px]">
+                      <li
+                        key={t.id}
+                        className="flex items-start gap-2 text-[14px]"
+                      >
                         <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-500" />
                         <span>
-                          <span className="font-medium text-ink-900">{t.title}</span>
-                          <span className="text-ink-600"> — {t.addedBecause}</span>
+                          <span className="font-medium text-ink-900">
+                            {t.title}
+                          </span>
+                          <span className="text-ink-600">
+                            {" "}
+                            — {t.addedBecause}
+                          </span>
                         </span>
                       </li>
                     ))}
@@ -545,43 +698,17 @@ function NewFileContent() {
                 </div>
               )}
 
-              {/* Full preview, grouped by phase */}
-              <div className="overflow-hidden rounded-2xl border border-hairline">
-                <p className="border-b border-hairline bg-canvas px-4 py-2.5 text-[13px] font-semibold text-ink-700">
-                  The checklist that will be built
+              <SequenceOverride
+                items={sequenceItems}
+                changed={sequence.overridden}
+                onChange={(items) => setDraft({ signature, items })}
+                onReset={() => setDraft(null)}
+              />
+              {chosen.length === 0 && (
+                <p className="text-[14px] font-medium text-red-600">
+                  Turn at least one task back on before creating the file.
                 </p>
-                <ul className="max-h-72 divide-y divide-hairline overflow-y-auto">
-                  {preview.tasks.map((t) => (
-                    <li key={t.id} className="flex items-start gap-3 bg-surface px-4 py-2.5">
-                      {t.dependsOn.length > 0 ? (
-                        <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-400" />
-                      ) : (
-                        <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
-                      )}
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-[14px] font-medium text-ink-900">
-                          {t.title}
-                        </span>
-                        <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
-                          <Badge variant="gray" size="xs">
-                            {PHASE_LABELS[t.phase]}
-                          </Badge>
-                          {t.subtasks.length > 0 && (
-                            <span className="text-[13px] text-ink-500">
-                              {t.subtasks.length} steps
-                            </span>
-                          )}
-                          {t.addedBecause && (
-                            <Badge variant="purple" size="xs">
-                              Conditional
-                            </Badge>
-                          )}
-                        </span>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              )}
             </div>
           )}
 
@@ -597,14 +724,24 @@ function NewFileContent() {
             )}
 
             {step < 4 ? (
-              <Button onClick={() => setStep(step + 1)} disabled={!canProceed()}>
+              <Button
+                onClick={goNext}
+                disabled={step === 1 ? !form.clientName?.trim() : !canProceed()}
+              >
                 Continue
                 <ArrowRight className="h-4 w-4" />
               </Button>
             ) : (
-              <Button variant="ink" size="lg" onClick={handleSubmit}>
+              <Button
+                variant="ink"
+                size="lg"
+                onClick={handleSubmit}
+                disabled={chosen.length === 0}
+              >
                 <Sparkles className="h-4 w-4" />
-                {completingId ? "Rebuild the checklist" : "Create file & build checklist"}
+                {completingId
+                  ? "Rebuild the checklist"
+                  : "Create file & build checklist"}
               </Button>
             )}
           </div>
@@ -616,19 +753,31 @@ function NewFileContent() {
 
 /* ────────────────────────────────────────────────────────────── */
 
-function QuickLeadForm({ onCreate }: { onCreate: (name: string, phone: string) => string }) {
+function QuickLeadForm({
+  onCreate,
+}: {
+  onCreate: (name: string, phone: string) => string;
+}) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [phoneMessage, setPhoneMessage] = useState<string | undefined>();
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
+    const message = phoneError(phone);
+    if (!name.trim() || message) {
+      setPhoneMessage(message);
+      return;
+    }
     const id = onCreate(name.trim(), phone.trim());
     router.push(`/files/${id}`);
   };
 
   return (
-    <AppShell crumbs={[{ label: "Home", href: "/dashboard" }, { label: "Quick lead" }]}>
+    <AppShell
+      crumbs={[{ label: "Home", href: "/dashboard" }, { label: "Quick lead" }]}
+    >
       <div className="mx-auto max-w-md">
         <Link
           href="/dashboard"
@@ -665,8 +814,14 @@ function QuickLeadForm({ onCreate }: { onCreate: (name: string, phone: string) =
               label="Phone number"
               type="tel"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="(555) 412-7788"
+              onChange={(e) => {
+                const next = formatPhoneTyping(e.target.value, phone);
+                setPhone(next);
+                if (phoneMessage) setPhoneMessage(phoneError(next));
+              }}
+              placeholder={PHONE_PLACEHOLDER}
+              maxLength={PHONE_PLACEHOLDER.length}
+              error={phoneMessage}
               required
             />
             <Button type="submit" size="lg" className="w-full">
@@ -692,7 +847,9 @@ function QuickLeadForm({ onCreate }: { onCreate: (name: string, phone: string) =
 function StepHeading({ title, blurb }: { title: string; blurb: string }) {
   return (
     <div>
-      <h2 className="text-[17px] font-semibold tracking-[-0.02em] text-ink-950">{title}</h2>
+      <h2 className="text-[17px] font-semibold tracking-[-0.02em] text-ink-950">
+        {title}
+      </h2>
       <p className="mt-1 text-[14px] leading-relaxed text-ink-500">{blurb}</p>
     </div>
   );
@@ -702,7 +859,9 @@ function Summary({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-surface px-4 py-3">
       <dt className="section-title">{label}</dt>
-      <dd className="mt-1 truncate text-[14px] font-semibold text-ink-950">{value || "—"}</dd>
+      <dd className="mt-1 truncate text-[14px] font-semibold text-ink-950">
+        {value || "—"}
+      </dd>
     </div>
   );
 }
@@ -747,7 +906,7 @@ function YesNo({
                 ? v
                   ? "bg-ink-950 text-white shadow-xs"
                   : "bg-surface text-ink-800 shadow-xs"
-                : "text-ink-500 hover:text-ink-700"
+                : "text-ink-500 hover:text-ink-700",
             )}
           >
             {v ? "Yes" : "No"}

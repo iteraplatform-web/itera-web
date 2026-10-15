@@ -36,6 +36,7 @@ export function NewFileWelcome({ file }: { file: TransactionFile }) {
           <span>
             {file.clientName}&apos;s file is ready with <strong>{file.checklist.length} checklist tasks</strong> and{" "}
             <strong>{docs} documents</strong> to collect.
+            {file.checklistOverridden && " Your task list was saved for this file."}
           </span>
         </p>
         <PortalAccessCard file={file} compact />

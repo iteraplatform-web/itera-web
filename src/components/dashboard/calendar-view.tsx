@@ -242,7 +242,7 @@ export function CalendarView({ files }: { files: TransactionFile[] }) {
         </span>
         <span className="flex items-center gap-1.5 text-[13px] text-ink-500">
           <span className="h-2.5 w-2.5 rounded-sm bg-ink-950" />
-          Closing date
+          Date of closing
         </span>
         <span className="flex items-center gap-1.5 text-[13px] text-ink-500">
           <span className="h-2.5 w-2.5 rounded-sm bg-red-400" />

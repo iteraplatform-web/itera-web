@@ -1,4 +1,4 @@
-import { subDays } from "date-fns";
+import { addDays, subDays } from "date-fns";
 import { v4 as uuid } from "uuid";
 import type { TransactionFile } from "@/types";
 
@@ -356,12 +356,41 @@ export function enrichOakwood(file: TransactionFile): void {
           ...a,
           listPrice: 625000,
           commissionRate: 0.03,
+          termStart: subDays(new Date(), 20).toISOString(),
+          termEnd: addDays(new Date(), 120).toISOString(),
           executedAt: subDays(new Date(), 20).toISOString(),
           status: "executed" as const,
           notes: "",
         }
       : a
   );
+
+  file.dealContacts = {
+    otherAgent: {
+      name: "Priya Shah",
+      phone: "(555) 014-2281",
+      email: "priya.shah@email.com",
+      organization: "Hill Country Realty",
+    },
+    lender: {
+      name: "James Holt",
+      phone: "(555) 014-4402",
+      email: "jholt@email.com",
+      organization: "First National Mortgage",
+    },
+    closingRep: {
+      name: "Elena Vargas",
+      phone: "(555) 014-7730",
+      email: "elena.vargas@email.com",
+      organization: "Capitol Title",
+    },
+  };
+  file.financials.rebate = 2500;
+  file.folderContext = {
+    story:
+      "Biscuit must be crated for every showing, and agents need two hours' notice. Hold the list price through next Tuesday before talking about a change.",
+    updatedAt: subDays(new Date(), 3).toISOString(),
+  };
 }
 
 /** Buyer search file with criteria and shortlist. */
@@ -422,6 +451,32 @@ export function enrichMarcusBuyer(file: TransactionFile): void {
       },
     ],
     updatedAt: subDays(new Date(), 2).toISOString(),
+  };
+
+  file.dealContacts = {
+    otherAgent: {
+      name: "Dana Webb",
+      phone: "(555) 014-1188",
+      email: "dana.webb@email.com",
+      organization: "Cedar Park Homes",
+    },
+    lender: {
+      name: "Chris Alvarez",
+      phone: "(555) 014-6621",
+      email: "calvarez@email.com",
+      organization: "Anchor Mortgage",
+    },
+    closingRep: {
+      name: "Elena Vargas",
+      phone: "(555) 014-7730",
+      email: "elena.vargas@email.com",
+      organization: "Capitol Title",
+    },
+  };
+  file.folderContext = {
+    story:
+      "The new job starts on the 3rd, so the move date matters more than the price. Meridian covers closing costs up to $8,000 and needs the settlement statement within 30 days of closing.",
+    updatedAt: subDays(new Date(), 4).toISOString(),
   };
 
   file.milestones = file.milestones.map((m) =>

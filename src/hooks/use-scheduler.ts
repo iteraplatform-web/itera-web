@@ -26,7 +26,9 @@ export function useScheduler() {
     if (!isAuthenticated) return;
 
     const run = () => {
-      const { files, markReminderFired } = useTransactionsStore.getState();
+      const { markReminderFired, applyExpiredListings } = useTransactionsStore.getState();
+      applyExpiredListings();
+      const files = useTransactionsStore.getState().files;
       const notifications = useNotificationsStore.getState();
       const seen = new Set(notifications.notifications.map((n) => n.dedupeKey).filter(Boolean));
       const now = new Date();

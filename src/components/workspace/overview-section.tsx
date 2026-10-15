@@ -41,10 +41,13 @@ import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { calculatePayout, money } from "@/lib/work/payout";
 import { FROM_CONTRACT } from "@/lib/checklist/rules";
+import { listingExpiryWarning, listingTermEnd } from "@/lib/work/listing-expiry";
+import { ExtendListingButton } from "@/components/workspace/extend-listing";
+import { FolderContextCard } from "@/components/workspace/folder-context";
 import { cn } from "@/lib/utils/cn";
 import type { ChecklistTask, TransactionFile } from "@/types";
 
-const CLOSED = new Set(["closed", "dropped", "terminated"]);
+const CLOSED = new Set(["closed", "dropped", "terminated", "expired"]);
 
 /**
  * The file's home screen. Answers one question: what does this file need from
@@ -54,6 +57,7 @@ const CLOSED = new Set(["closed", "dropped", "terminated"]);
 export function OverviewSection({ file }: { file: TransactionFile }) {
   return (
     <div className="space-y-6">
+      <FolderContextCard file={file} />
       <LatestMessageCard file={file} />
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
         <div className="min-w-0 space-y-6">
@@ -510,12 +514,22 @@ function KeyDatesCard({ file }: { file: TransactionFile }) {
 
   const optionEnds = file.contractDate ? addDays(parseISO(file.contractDate), FROM_CONTRACT.inspection) : null;
   const daysToClose = file.closingDate ? differenceInCalendarDays(parseISO(file.closingDate), new Date()) : null;
+  const listingEnds = file.side === "listing" ? listingTermEnd(file) : undefined;
+  const expiryWarning = listingExpiryWarning(file);
 
   const rows = [
     { label: "File opened", value: format(parseISO(file.createdAt), "MMM d, yyyy") },
-    { label: "Contract signed", value: file.contractDate ? format(parseISO(file.contractDate), "MMM d, yyyy") : "Not yet" },
+    { label: "Date of acceptance", value: file.contractDate ? format(parseISO(file.contractDate), "MMM d, yyyy") : "Not yet" },
     ...(optionEnds ? [{ label: "Option period ends", value: format(optionEnds, "MMM d, yyyy") }] : []),
-    { label: "Closing", value: file.closingDate ? format(parseISO(file.closingDate), "EEE, MMM d, yyyy") : "Not set" },
+    { label: "Date of closing", value: file.closingDate ? format(parseISO(file.closingDate), "EEE, MMM d, yyyy") : "Not set" },
+    ...(file.side === "listing"
+      ? [
+          {
+            label: "Listing expires",
+            value: listingEnds ? format(parseISO(listingEnds), "EEE, MMM d, yyyy") : "Not set",
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -544,6 +558,20 @@ function KeyDatesCard({ file }: { file: TransactionFile }) {
           </div>
         ))}
       </dl>
+      {file.side === "listing" && listingEnds && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-[14px] text-ink-600">
+            {file.status === "expired"
+              ? "This listing is expired."
+              : expiryWarning
+                ? expiryWarning.daysLeft === 0
+                  ? "This listing expires today."
+                  : `This listing expires in ${expiryWarning.daysLeft} day${expiryWarning.daysLeft === 1 ? "" : "s"}.`
+                : "Extend the agreement if the seller wants more time."}
+          </p>
+          <ExtendListingButton file={file} />
+        </div>
+      )}
 
       <Modal
         open={editing}
@@ -570,8 +598,8 @@ function KeyDatesCard({ file }: { file: TransactionFile }) {
         }
       >
         <div className="space-y-4">
-          <Input id="contractDate" label="Contract signed" type="date" value={contract} onChange={(e) => setContract(e.target.value)} />
-          <Input id="closingDate" label="Closing date" type="date" value={closing} onChange={(e) => setClosing(e.target.value)} />
+          <Input id="contractDate" label="Date of acceptance" type="date" value={contract} onChange={(e) => setContract(e.target.value)} />
+          <Input id="closingDate" label="Date of closing" type="date" value={closing} onChange={(e) => setClosing(e.target.value)} />
         </div>
       </Modal>
     </Panel>

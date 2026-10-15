@@ -36,6 +36,8 @@ export function IntakeFlags({ file }: { file: TransactionFile }) {
       </h3>
       <p className="mt-1 max-w-xl text-[15px] text-ink-500">
         Change one of these and ITERA adds or removes the matching tasks and documents. Work already started is never removed.
+        {file.checklistOverridden &&
+          " This file keeps the task order you set. Saving adds or removes only the tasks tied to these answers."}
       </p>
 
       <div className="mt-5 space-y-4">

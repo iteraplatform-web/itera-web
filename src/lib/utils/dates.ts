@@ -29,6 +29,7 @@ export const STATUS_COLORS: Record<TransactionStatus, { bg: string; text: string
   in_progress: { bg: "bg-amber-100", text: "text-amber-800", border: "border-amber-300" },
   under_contract: { bg: "bg-amber-100", text: "text-amber-800", border: "border-amber-300" },
   closed: { bg: "bg-green-100", text: "text-green-800", border: "border-green-300" },
+  expired: { bg: "bg-gray-200", text: "text-gray-800", border: "border-gray-400" },
   dropped: { bg: "bg-gray-100", text: "text-gray-500", border: "border-gray-200" },
   terminated: { bg: "bg-red-100", text: "text-red-800", border: "border-red-300" },
 };

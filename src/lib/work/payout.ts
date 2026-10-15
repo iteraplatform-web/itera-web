@@ -14,14 +14,18 @@ export interface PayoutBreakdown {
   agentSplitPct: number;
   brokerageShare: number;
   transactionFee: number;
+  /** What the agent keeps before giving any rebate back to their client. */
+  beforeRebate: number;
+  rebate: number;
   net: number;
 }
 
 /**
  * What actually reaches the agent, in the order money is taken at closing:
- * gross commission → referral fee to the referring broker → brokerage split →
- * flat transaction fee. Every screen that shows a payout uses this, so the
- * Overview and the Offers & Money tab can never disagree.
+ * gross compensation → referral fee to the referring broker → brokerage split →
+ * flat transaction fee → rebate back to the agent's own client. Every screen
+ * that shows a payout uses this, so the Overview and the Offers & Money tab
+ * can never disagree.
  */
 export function calculatePayout(file: TransactionFile, user?: User | null): PayoutBreakdown {
   const price = file.financials.listPrice || file.listPrice || 0;
@@ -33,7 +37,9 @@ export function calculatePayout(file: TransactionFile, user?: User | null): Payo
   const agentSplitPct = user?.agentSplit ?? DEFAULT_AGENT_SPLIT;
   const brokerageShare = afterReferral * (1 - agentSplitPct / 100);
   const transactionFee = gross > 0 ? user?.transactionFee ?? DEFAULT_TRANSACTION_FEE : 0;
-  const net = Math.max(0, afterReferral - brokerageShare - transactionFee);
+  const beforeRebate = afterReferral - brokerageShare - transactionFee;
+  const rebate = Math.max(0, file.financials.rebate || 0);
+  const net = Math.max(0, beforeRebate - rebate);
 
   return {
     price,
@@ -45,6 +51,8 @@ export function calculatePayout(file: TransactionFile, user?: User | null): Payo
     agentSplitPct,
     brokerageShare,
     transactionFee,
+    beforeRebate,
+    rebate,
     net,
   };
 }

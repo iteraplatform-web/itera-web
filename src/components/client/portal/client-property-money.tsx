@@ -295,11 +295,12 @@ function NumberField({
 }
 
 function Line({ label, value, strong, minus }: { label: string; value: number; strong?: boolean; minus?: boolean }) {
+  const negative = minus || value < 0;
   return (
     <div className={cn("flex items-baseline justify-between gap-4 py-3", strong && "border-t-2 border-ink-950")}>
       <span className={cn("text-[16px]", strong ? "font-bold text-ink-950" : "text-ink-600")}>{label}</span>
       <span className={cn("tnum", strong ? "text-[26px] font-bold text-ink-950" : "text-[17px] font-semibold text-ink-800")}>
-        {minus ? "−" : ""}
+        {negative ? "−" : ""}
         {money(Math.abs(value))}
       </span>
     </div>
@@ -309,11 +310,14 @@ function Line({ label, value, strong, minus }: { label: string; value: number; s
 function SellerMoney({ file }: { file: TransactionFile }) {
   const accepted = file.offers.find((o) => o.status === "accepted");
   const [price, setPrice] = useState(accepted?.amount ?? file.listPrice ?? 0);
-  const [listingPct, setListingPct] = useState(+(file.financials.commissionRate * 100).toFixed(2));
-  const [buyerPct, setBuyerPct] = useState(2.5);
+  const [listingPct, setListingPct] = useState(
+    accepted?.sellingAgentRate != null ? +(accepted.sellingAgentRate * 100).toFixed(2) : +(file.financials.commissionRate * 100).toFixed(2)
+  );
+  const [buyerPct, setBuyerPct] = useState(accepted?.buyerAgentRate != null ? +(accepted.buyerAgentRate * 100).toFixed(2) : 2.5);
   const [closingPct, setClosingPct] = useState(1);
   const [payoff, setPayoff] = useState(0);
-  const r = sellerNet({ price, listingCommissionPct: listingPct, buyerAgentPct: buyerPct, closingCostsPct: closingPct, payoff });
+  const [concession, setConcession] = useState(accepted?.concession ?? 0);
+  const r = sellerNet({ price, listingCommissionPct: listingPct, buyerAgentPct: buyerPct, closingCostsPct: closingPct, payoff, concession });
 
   return (
     <div>
@@ -325,11 +329,16 @@ function SellerMoney({ file }: { file: TransactionFile }) {
               {file.offers.length} offer{file.offers.length === 1 ? "" : "s"} received
               {accepted ? (
                 <>
-                  . Accepted at <strong className="text-ink-950">{money(accepted.amount)}</strong>
-                  {file.listPrice && accepted.amount !== file.listPrice ? "" : ""}.
+                  . Accepted at <strong className="text-ink-950">{money(accepted.amount)}</strong>.
                 </>
               ) : (
                 ". Your agent will walk you through them."
+              )}
+              {accepted?.incentives && (
+                <>
+                  {" "}
+                  This offer also includes <strong className="text-ink-950">{accepted.incentives}</strong>.
+                </>
               )}
             </p>
             {file.financials.earnestMoney > 0 && (
@@ -345,18 +354,20 @@ function SellerMoney({ file }: { file: TransactionFile }) {
           <PCard title="Your numbers">
             <div className="space-y-4">
               <NumberField label={accepted ? "Sale price" : "Expected sale price"} value={price} onChange={setPrice} prefix="$" />
-              <NumberField label="Your agent's commission" value={listingPct} onChange={setListingPct} suffix="%" hint="From your listing agreement" />
-              <NumberField label="Buyer's agent compensation" value={buyerPct} onChange={setBuyerPct} suffix="%" hint="If you've agreed to contribute — set to 0 if not" />
+              <NumberField label="Selling agent" value={listingPct} onChange={setListingPct} suffix="%" hint="The agent who listed the home. Separate from incentives." />
+              <NumberField label="Buyer agent" value={buyerPct} onChange={setBuyerPct} suffix="%" hint="The agent who brought the buyer. Set to 0 if you are not paying them." />
               <NumberField label="Closing costs" value={closingPct} onChange={setClosingPct} suffix="%" hint="Title, escrow, and fees — about 1% is typical" />
+              <NumberField label="Help toward the buyer's costs" value={concession} onChange={setConcession} prefix="$" hint="Filled from the accepted offer. This comes out of what you walk away with." />
               <NumberField label="Mortgage still owed" value={payoff} onChange={setPayoff} prefix="$" hint="Your lender can give you the exact payoff" />
             </div>
           </PCard>
 
           <PCard title="Estimated take-home">
             <Line label="Sale price" value={price} />
-            <Line label="Your agent's commission" value={r.listingCommission} minus />
-            {r.buyerAgent > 0 && <Line label="Buyer's agent compensation" value={r.buyerAgent} minus />}
+            <Line label="Selling agent" value={r.listingCommission} minus />
+            {r.buyerAgent > 0 && <Line label="Buyer agent" value={r.buyerAgent} minus />}
             <Line label="Closing costs" value={r.closingCosts} minus />
+            {concession > 0 && <Line label="Help toward the buyer's costs" value={concession} minus />}
             {payoff > 0 && <Line label="Mortgage payoff" value={payoff} minus />}
             <Line label="You walk away with" value={r.net} strong />
             <p className="mt-3 text-[14px] leading-relaxed text-ink-500">
@@ -377,7 +388,8 @@ function BuyerMoney({ file }: { file: TransactionFile }) {
   const [rate, setRate] = useState(6.5);
   const [taxIns, setTaxIns] = useState(Math.round(((file.listPrice || 0) * 0.022) / 12 + 150));
   const earnest = file.financials.earnestMoney || 0;
-  const r = buyerCashToClose({ price, downPct, closingCostsPct: closingPct, earnestMoney: earnest, ratePct: rate, taxInsuranceMonthly: taxIns });
+  const [concession, setConcession] = useState(accepted?.concession ?? 0);
+  const r = buyerCashToClose({ price, downPct, closingCostsPct: closingPct, earnestMoney: earnest, ratePct: rate, taxInsuranceMonthly: taxIns, concession });
 
   return (
     <div>
@@ -389,6 +401,7 @@ function BuyerMoney({ file }: { file: TransactionFile }) {
             <NumberField label="Down payment" value={downPct} onChange={setDownPct} suffix="%" hint={`${money((price * downPct) / 100)}`} />
             <NumberField label="Interest rate" value={rate} onChange={setRate} suffix="%" hint="30-year fixed. Your lender confirms your actual rate." />
             <NumberField label="Closing costs" value={closingPct} onChange={setClosingPct} suffix="%" hint="Lender, title, and prepaid items — 2–3% is typical" />
+            <NumberField label="Seller help toward your costs" value={concession} onChange={setConcession} prefix="$" hint={accepted?.incentives ? `This offer also includes ${accepted.incentives}.` : "Filled from the accepted offer. This lowers the cash you need."} />
             <NumberField label="Property tax and insurance, per month" value={taxIns} onChange={setTaxIns} prefix="$" />
           </div>
         </PCard>
@@ -397,6 +410,7 @@ function BuyerMoney({ file }: { file: TransactionFile }) {
           <PCard title="Cash needed at closing">
             <Line label="Down payment" value={r.down} />
             <Line label="Closing costs" value={r.closingCosts} />
+            {concession > 0 && <Line label="Seller help toward your costs" value={concession} minus />}
             {earnest > 0 && <Line label="Deposit already paid" value={earnest} minus />}
             <Line label="Bring to closing" value={r.cashToClose} strong />
           </PCard>

@@ -29,11 +29,12 @@ export function ClientHome({ file, unread, readOnly }: { file: TransactionFile; 
   const firstName = file.clientName.replace(/&.*$/, "").trim().split(" ")[0];
   const stage = getClientStage(file);
   const stageIdx = STAGE_ORDER.indexOf(stage);
+  const side = file.side;
   const closed = file.status === "closed";
+  const expiredListing = file.status === "expired" && side === "listing";
   const days = daysToClosing(file);
   const next = getClientMilestones(file).find((m) => m.state !== "done");
   const latest = getClientUpdates(file, 1)[0];
-  const side = file.side;
   const agentFirst = agent?.name?.split(" ")[0] ?? "your agent";
   const cover = file.coverPhotoId ? file.photos?.find((p) => p.id === file.coverPhotoId) : undefined;
 
@@ -41,8 +42,9 @@ export function ClientHome({ file, unread, readOnly }: { file: TransactionFile; 
   const lastMsg = file.messages[file.messages.length - 1];
 
   // The single most important thing for the client to do, if anything.
-  const action =
-    unread > 0 && lastMsg?.sender === "agent"
+  const action = expiredListing
+    ? null
+    : unread > 0 && lastMsg?.sender === "agent"
       ? { title: `${agentFirst} sent you a message`, detail: lastMsg.content, cta: "Read and reply", href: clientTabHref(file.id, "messages") }
       : needed.length > 0
       ? {
@@ -57,6 +59,8 @@ export function ClientHome({ file, unread, readOnly }: { file: TransactionFile; 
     ? side === "listing"
       ? "Your home is sold. Congratulations!"
       : "Welcome home. Congratulations!"
+    : expiredListing
+    ? "Your listing agreement has ended"
     : side === "listing"
     ? `Your home is ${STAGE_INFO[stage].listing.toLowerCase()}`
     : stage === "market"
@@ -70,12 +74,17 @@ export function ClientHome({ file, unread, readOnly }: { file: TransactionFile; 
         <div className="min-w-0">
         <p className="text-[17px] text-ink-300">Hi {firstName},</p>
         <h1 className="mt-1 text-[28px] font-bold leading-tight tracking-[-0.02em] sm:text-[34px]">{headline}</h1>
-        {!closed && <p className="mt-2 max-w-xl text-[17px] leading-relaxed text-ink-200">{STAGE_INFO[stage].blurb[side]}</p>}
+        {!closed && expiredListing && (
+          <p className="mt-2 max-w-xl text-[17px] leading-relaxed text-ink-200">
+            The agreement to sell this home has finished. Your agent will talk with you about what comes next.
+          </p>
+        )}
+        {!closed && !expiredListing && <p className="mt-2 max-w-xl text-[17px] leading-relaxed text-ink-200">{STAGE_INFO[stage].blurb[side]}</p>}
 
         <ol className="mt-7 grid grid-cols-4 gap-2">
           {STAGE_ORDER.map((s, i) => {
             const done = i < stageIdx || closed;
-            const now = i === stageIdx && !closed;
+            const now = i === stageIdx && !closed && !expiredListing;
             return (
               <li key={s}>
                 <span className={cn("block h-2 rounded-full", done ? "bg-emerald-400" : now ? "bg-white" : "bg-white/20")} />
