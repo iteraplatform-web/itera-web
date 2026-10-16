@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Avatar } from "@/components/ui/misc";
 import { STATUS_THEME } from "@/lib/utils/status-theme";
+import { manualStatusChoices, statusChangeHint } from "@/lib/work/status-flow";
 import { formatDate } from "@/lib/utils/dates";
 import {
   getFileProgress,
@@ -131,17 +132,12 @@ export function FileHeader({ file, onStatusChange }: FileHeaderProps) {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <select
-                value={file.status}
-                onChange={(e) => onStatusChange(e.target.value as TransactionStatus)}
+              <StatusMenu
+                file={file}
+                onStatusChange={onStatusChange}
+                id="status-header"
                 className="h-9 cursor-pointer rounded-[10px] border-0 bg-canvas px-3 text-[14px] font-semibold text-ink-800 ring-1 ring-inset ring-hairline-strong transition-shadow focus:outline-none focus:ring-2 focus:ring-itera-500"
-              >
-                {Object.entries(STATUS_LABELS).map(([key, label]) => (
-                  <option key={key} value={key}>
-                    {label}
-                  </option>
-                ))}
-              </select>
+              />
 
               <Link href={`/client/login?email=${encodeURIComponent(file.portalAccess?.email ?? file.email)}`} target="_blank">
                 <Button size="sm" variant="secondary">
@@ -246,22 +242,17 @@ export function FileActions({
       : "h-10 cursor-pointer rounded-[10px] border-0 bg-canvas px-3 text-[14px] font-semibold text-ink-800 ring-1 ring-inset ring-hairline-strong focus:outline-none focus:ring-2 focus:ring-itera-500";
 
   return (
-    <div className={cn("flex gap-2", variant === "sidebar" ? "items-center" : "flex-wrap items-center")}>
+    <div className={cn("flex min-w-0 flex-col gap-1", variant === "sidebar" && "flex-1")}>
+      <div className={cn("flex gap-2", variant === "sidebar" ? "items-center" : "flex-wrap items-center")}>
       <label className="sr-only" htmlFor={`status-${variant}`}>
         File status
       </label>
-      <select
+      <StatusMenu
+        file={file}
+        onStatusChange={onStatusChange}
         id={`status-${variant}`}
-        value={file.status}
-        onChange={(e) => onStatusChange(e.target.value as TransactionStatus)}
         className={selectClass}
-      >
-        {Object.entries(STATUS_LABELS).map(([key, label]) => (
-          <option key={key} value={key}>
-            {label}
-          </option>
-        ))}
-      </select>
+      />
       <Link
         href={`/client/login?email=${encodeURIComponent(portalEmail)}`}
         target="_blank"
@@ -276,6 +267,48 @@ export function FileActions({
         <ExternalLink className="h-3.5 w-3.5" />
         {variant === "sidebar" ? "Client" : "Client view"}
       </Link>
+      </div>
+      <p className={cn("text-[12px] leading-snug", variant === "sidebar" ? "text-cream-ink/70" : "text-ink-500")}>
+        {statusChangeHint(file.status)}
+      </p>
     </div>
+  );
+}
+
+function StatusMenu({
+  file,
+  onStatusChange,
+  id,
+  className,
+}: {
+  file: TransactionFile;
+  onStatusChange: (status: TransactionStatus) => void;
+  id: string;
+  className: string;
+}) {
+  const choices = manualStatusChoices(file.status);
+  const hint = statusChangeHint(file.status);
+  if (choices.length === 0) {
+    return (
+      <span id={id} title={hint} className={cn(className, "inline-flex items-center")}>
+        {STATUS_LABELS[file.status]}
+      </span>
+    );
+  }
+  return (
+    <select
+      id={id}
+      value={file.status}
+      title={hint}
+      onChange={(e) => onStatusChange(e.target.value as TransactionStatus)}
+      className={className}
+    >
+      <option value={file.status}>{STATUS_LABELS[file.status]}</option>
+      {choices.map((status) => (
+        <option key={status} value={status}>
+          {STATUS_LABELS[status]}
+        </option>
+      ))}
+    </select>
   );
 }

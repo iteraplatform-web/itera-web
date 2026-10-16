@@ -41,6 +41,7 @@ import {
   listingExpiryWarning,
   listingTermEnd,
 } from "@/lib/work/listing-expiry";
+import { manualStatusError } from "@/lib/work/status-flow";
 import {
   filterFiles,
   getFileById as selectFileById,
@@ -103,7 +104,12 @@ interface TransactionsState {
 
   createFile: (answers: IntakeAnswers, sequence?: SavedSequence) => string;
   createQuickLead: (name: string, phone: string) => string;
-  updateFileStatus: (fileId: string, status: TransactionStatus, actor?: string) => void;
+  updateFileStatus: (
+    fileId: string,
+    status: TransactionStatus,
+    actor?: string,
+    options?: { automatic?: boolean }
+  ) => boolean;
   /** Move listings to Expired when the signed agreement ended yesterday or earlier. */
   applyExpiredListings: (options?: { notify?: boolean }) => void;
   /** Set a later listing end date. An expired listing becomes Listed again. */
@@ -407,9 +413,16 @@ export const useTransactionsStore = create<TransactionsState>()(
         return file.id;
       },
 
-      updateFileStatus: (fileId, status, actor = "Demo Agent") => {
+      updateFileStatus: (fileId, status, actor = "Demo Agent", options) => {
         const file = get().files.find((f) => f.id === fileId);
-        if (!file || file.status === status) return;
+        if (!file || file.status === status) return false;
+        if (!options?.automatic) {
+          const problem = manualStatusError(file.status, status);
+          if (problem) {
+            toast.error("Status follows the deal", problem);
+            return false;
+          }
+        }
 
         const prev = file.status;
         const prevLabel = STATUS_THEME[prev].label;
@@ -443,13 +456,14 @@ export const useTransactionsStore = create<TransactionsState>()(
         ) {
           get().applyExpiredListings({ notify: false });
         }
+        return true;
       },
 
       applyExpiredListings: ({ notify = true } = {}) => {
         const now = new Date();
         for (const file of get().files) {
           if (!isListingTermOver(file, now)) continue;
-          get().updateFileStatus(file.id, "expired", "ITERA");
+          get().updateFileStatus(file.id, "expired", "ITERA", { automatic: true });
         }
         if (!notify) return;
 
@@ -520,7 +534,7 @@ export const useTransactionsStore = create<TransactionsState>()(
           a.termEnd = termEnd;
           pushWorkActivity(f, "agreement_updated", `Listing extended through ${when}`, actor);
         });
-        if (wasExpired) get().updateFileStatus(fileId, "listed", actor);
+        if (wasExpired) get().updateFileStatus(fileId, "listed", actor, { automatic: true });
         toast.success("Listing extended", `The new end date is ${when}.`);
         get().applyExpiredListings();
       },
@@ -1499,9 +1513,27 @@ export const useTransactionsStore = create<TransactionsState>()(
           pushWorkActivity(f, "agreement_updated", `Agreement updated: ${a.kind}`, actor);
         });
         const updated = get().files.find((f) => f.id === fileId);
-        const end = updated ? listingTermEnd(updated) : undefined;
-        if (updated?.status === "expired" && end && !isDayAfterTerm(end, new Date())) {
-          get().updateFileStatus(fileId, "listed", actor);
+        const saved = updated?.agreements.find((a) => a.id === agreementId);
+        if (
+          saved?.kind === "listing" &&
+          saved.status === "executed" &&
+          updated?.side === "listing" &&
+          (updated.status === "prospective" || updated.status === "in_progress")
+        ) {
+          get().updateFileStatus(fileId, "listed", actor, { automatic: true });
+        }
+        if (
+          saved?.kind === "buyer" &&
+          saved.status === "executed" &&
+          updated?.side === "buying" &&
+          (updated.status === "prospective" || updated.status === "in_progress")
+        ) {
+          get().updateFileStatus(fileId, "buyer_agency", actor, { automatic: true });
+        }
+        const after = get().files.find((f) => f.id === fileId);
+        const end = after ? listingTermEnd(after) : undefined;
+        if (after?.status === "expired" && end && !isDayAfterTerm(end, new Date())) {
+          get().updateFileStatus(fileId, "listed", actor, { automatic: true });
         }
         get().applyExpiredListings();
         toast.success("Agreement saved", "Terms logged on the file");

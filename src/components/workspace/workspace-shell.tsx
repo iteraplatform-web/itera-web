@@ -107,7 +107,7 @@ export function WorkspaceShell({
     if (!file || file.status === status) return;
     const prevLabel = STATUS_THEME[file.status].label;
     const newLabel = STATUS_THEME[status].label;
-    updateFileStatus(file.id, status);
+    if (!updateFileStatus(file.id, status)) return;
     addNotification({
       fileId: file.id,
       title: "Status changed",

@@ -53,8 +53,7 @@ export function KanbanBoard({ files }: { files: TransactionFile[] }) {
     const prevLabel = STATUS_THEME[file.status].label;
     const newLabel = STATUS_THEME[newStatus].label;
 
-    // The store raises its own toast and broadcasts to the client tab.
-    updateFileStatus(fileId, newStatus);
+    if (!updateFileStatus(fileId, newStatus)) return;
 
     addNotification({
       fileId,
@@ -76,8 +75,7 @@ export function KanbanBoard({ files }: { files: TransactionFile[] }) {
         <p className="flex items-center gap-2 text-[14px] text-ink-600">
           <Info className="h-3.5 w-3.5 shrink-0 text-ink-500" />
           <span>
-            <span className="font-semibold text-ink-900">Drag a card</span> between columns to
-            change its status
+            <span className="font-semibold text-ink-900">Drag a card</span> only to Dropped, or from Under Contract to Closed or Terminated. Listed, Under Contract, and Expired update on their own.
           </span>
         </p>
         <p className="tnum shrink-0 text-[13px] text-ink-500">{files.length} on board</p>
