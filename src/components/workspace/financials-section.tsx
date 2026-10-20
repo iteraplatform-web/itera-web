@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Check,
   Gift,
@@ -14,6 +14,7 @@ import { useAuthStore, useTransactionsStore } from "@/stores";
 import { useFocusTarget } from "@/hooks/use-focus-target";
 import { calculatePayout, money } from "@/lib/work/payout";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Modal } from "@/components/ui/modal";
 import { Input, Select, Textarea } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -39,23 +40,78 @@ export function FinancialsSection({ file, focus }: { file: TransactionFile; focu
   const addOffer = useTransactionsStore((s) => s.addOffer);
   const setOfferStatus = useTransactionsStore((s) => s.setOfferStatus);
   const [showOfferModal, setShowOfferModal] = useState(false);
+  const [confirm, setConfirm] = useState<ConfirmAsk | null>(null);
+  const [accepting, setAccepting] = useState<Offer | null>(null);
 
   const { financials } = file;
   const payout = calculatePayout(file, user);
+  const acceptedOffer = file.offers.find((offer) => offer.status === "accepted");
+  const priceLabel = acceptedOffer ? "Sale price" : file.side === "listing" ? "List price" : "Target price";
+  const yourSide = file.side === "listing" ? "selling agent" : "buyer agent";
+
+  const [priceText, setPriceText] = useState(amountText(financials.listPrice));
+  const [rateText, setRateText] = useState(percentText(financials.commissionRate));
+  const [earnestText, setEarnestText] = useState(amountText(financials.earnestMoney));
+  const [rebateText, setRebateText] = useState(amountText(financials.rebate));
+
+  useEffect(() => setPriceText(amountText(financials.listPrice)), [financials.listPrice]);
+  useEffect(() => setRateText(percentText(financials.commissionRate)), [financials.commissionRate]);
+  useEffect(() => setEarnestText(amountText(financials.earnestMoney)), [financials.earnestMoney]);
+  useEffect(() => setRebateText(amountText(financials.rebate)), [financials.rebate]);
+
+  const agreementName = file.side === "listing" ? "listing agreement" : "buyer agreement";
+  const confirmRef = useRef<ConfirmAsk | null>(null);
+  const ask = (next: ConfirmAsk) => {
+    if (confirmRef.current) return;
+    confirmRef.current = next;
+    setConfirm(next);
+  };
+  const closeConfirm = () => {
+    confirmRef.current?.cancel?.();
+    confirmRef.current = null;
+    setConfirm(null);
+  };
+  const runConfirm = () => {
+    const run = confirmRef.current?.run;
+    confirmRef.current = null;
+    setConfirm(null);
+    run?.();
+  };
 
   return (
     <div className="space-y-7">
       {/* ── Deal basics ───────────────────────────────────────── */}
       <section>
         <SectionLabel icon={Receipt}>Deal figures</SectionLabel>
+        <p className="mb-3 max-w-xl text-[14px] leading-relaxed text-ink-600">
+          {acceptedOffer
+            ? "This sale price and your percent are the same on Milestones & agreements and on the accepted offer. Press Enter to change them. You will be asked to confirm."
+            : `This ${priceLabel.toLowerCase()} and your percent are the same on Milestones & agreements. Press Enter to change them. You will be asked to confirm.`}
+        </p>
         <div className="grid gap-3 sm:grid-cols-2">
           <Input
             id="listPrice"
-            label={file.side === "listing" ? "List / sale price" : "Target price"}
+            label={priceLabel}
             type="number"
             leading="$"
-            value={financials.listPrice || ""}
-            onChange={(e) => updateFinancials(file.id, { listPrice: Number(e.target.value) })}
+            value={priceText}
+            onChange={(e) => setPriceText(e.target.value)}
+            onBlur={() => {
+              window.setTimeout(() => {
+                commitAmount(priceText, financials.listPrice, setPriceText, (next) =>
+                  ask({
+                    title: acceptedOffer ? "Change the sale price?" : `Save the ${priceLabel.toLowerCase()}?`,
+                    message: acceptedOffer
+                      ? `Change the sale price from ${money(financials.listPrice)} to ${money(next)}? The Money page, the ${agreementName}, and the accepted offer will all use ${money(next)}. Your pay will be recalculated.`
+                      : `Save the ${priceLabel.toLowerCase()} as ${money(next)}? The Money page and the ${agreementName} will both show this price.`,
+                    confirmLabel: acceptedOffer ? "Change sale price" : "Save price",
+                    run: () => updateFinancials(file.id, { listPrice: next }),
+                    cancel: () => setPriceText(amountText(financials.listPrice)),
+                  })
+                );
+              }, 0);
+            }}
+            onKeyDown={commitOnEnter}
             placeholder="0"
           />
           <Input
@@ -64,18 +120,24 @@ export function FinancialsSection({ file, focus }: { file: TransactionFile; focu
             type="number"
             step="0.05"
             trailing="%"
-            /* Stored as a decimal, entered as a percentage — agents think in
-               percentages, so the field speaks their language. */
-            value={financials.commissionRate ? +(financials.commissionRate * 100).toFixed(2) : ""}
-            onChange={(e) =>
-              updateFinancials(file.id, { commissionRate: Number(e.target.value) / 100 })
+            value={rateText}
+            onChange={(e) => setRateText(e.target.value)}
+            onBlur={() =>
+              commitPercent(rateText, financials.commissionRate, setRateText, (next) =>
+                ask({
+                  title: `Change your ${yourSide} percent?`,
+                  message: acceptedOffer
+                    ? `Change your ${yourSide} percent from ${percentText(financials.commissionRate) || "0"}% to ${percentText(next)}%? The Money page, the agreement, and the accepted offer will all use ${percentText(next)}%. Your pay will be recalculated.`
+                    : `Save your ${yourSide} percent as ${percentText(next)}%? The Money page and the agreement will both use it. Your pay will be recalculated.`,
+                  confirmLabel: "Change percent",
+                  run: () => updateFinancials(file.id, { commissionRate: next }),
+                  cancel: () => setRateText(percentText(financials.commissionRate)),
+                })
+              )
             }
+            onKeyDown={commitOnEnter}
             placeholder="2.5"
-            hint={
-              file.side === "listing"
-                ? "Your pay. The buyer agent percent is in the split below."
-                : "Your pay. The selling agent percent is in the split below."
-            }
+            hint="Your pay. The other agent's percent is in the split below."
           />
         </div>
       </section>
@@ -85,48 +147,93 @@ export function FinancialsSection({ file, focus }: { file: TransactionFile; focu
         <SectionLabel icon={HandCoins}>Earnest money</SectionLabel>
         <div
           className={cn(
-            "flex flex-wrap items-center justify-between gap-4 rounded-2xl border px-5 py-4",
+            "rounded-2xl border px-5 py-4",
             financials.earnestMoneyStatus === "received"
-              ? "border-emerald-200 bg-emerald-50/50"
-              : "border-amber-200 bg-amber-50/50"
+              ? "border-emerald-200 bg-emerald-50/60"
+              : "border-amber-200 bg-amber-50/60"
           )}
         >
-          <div>
-            <p className="tnum text-[26px] font-bold leading-none tracking-[-0.02em] text-ink-950">
-              {money(financials.earnestMoney)}
-            </p>
-            <p className="mt-1.5 text-[13px] text-ink-500">
-              {financials.earnestMoneyStatus === "received"
-                ? "Verified in escrow"
-                : "Not yet confirmed — later tasks stay locked until it is"}
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Input
-              id="earnestAmount"
-              type="number"
-              leading="$"
-              value={financials.earnestMoney || ""}
-              onChange={(e) => updateFinancials(file.id, { earnestMoney: Number(e.target.value) })}
-              className="w-32"
-            />
-            <button
-              onClick={() =>
-                updateFinancials(file.id, {
-                  earnestMoneyStatus:
-                    financials.earnestMoneyStatus === "received" ? "pending" : "received",
-                })
-              }
-              className={cn(
-                "h-[42px] rounded-xl px-3.5 text-[14px] font-semibold transition-colors",
-                financials.earnestMoneyStatus === "received"
-                  ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                  : "bg-amber-500 text-white hover:bg-amber-600"
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="min-w-0">
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold",
+                  financials.earnestMoneyStatus === "received"
+                    ? "bg-emerald-100 text-emerald-800"
+                    : "bg-amber-100 text-amber-800"
+                )}
+              >
+                <span
+                  className={cn(
+                    "h-1.5 w-1.5 rounded-full",
+                    financials.earnestMoneyStatus === "received" ? "bg-emerald-500" : "bg-amber-500"
+                  )}
+                />
+                {financials.earnestMoneyStatus === "received" ? "Received" : "Pending"}
+              </span>
+              <p className="mt-2 max-w-md text-[14px] leading-relaxed text-ink-600">{earnestNote(file)}</p>
+            </div>
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-end">
+              <div className="w-full sm:w-40">
+              <Input
+                id="earnestAmount"
+                label="Deposit amount"
+                type="number"
+                leading="$"
+                value={earnestText}
+                onChange={(e) => setEarnestText(e.target.value)}
+                onBlur={() =>
+                  commitAmount(earnestText, financials.earnestMoney, setEarnestText, (next) =>
+                    ask({
+                      title: "Change the earnest deposit?",
+                      message: acceptedOffer
+                        ? `Change the earnest deposit from ${money(financials.earnestMoney)} to ${money(next)}? The Money page and the accepted offer will both show ${money(next)}.`
+                        : `Change the earnest deposit from ${money(financials.earnestMoney)} to ${money(next)}? The Money page will show ${money(next)}.`,
+                      confirmLabel: "Change deposit",
+                      run: () => updateFinancials(file.id, { earnestMoney: next }),
+                      cancel: () => setEarnestText(amountText(financials.earnestMoney)),
+                    }),
+                    true
+                  )
+                }
+                onKeyDown={commitOnEnter}
+              />
+              </div>
+              {financials.earnestMoneyStatus === "received" ? (
+                <Button
+                  variant="secondary"
+                  className="sm:mb-px"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() =>
+                    ask({
+                      title: "Mark the deposit as pending?",
+                      message:
+                        "The deposit will show as not in escrow yet. The checklist step that says the deposit arrived will be opened again.",
+                      confirmLabel: "Mark as pending",
+                      run: () => updateFinancials(file.id, { earnestMoneyStatus: "pending" }),
+                    })
+                  }
+                >
+                  Mark as pending
+                </Button>
+              ) : (
+                <Button
+                  variant="ink"
+                  className="sm:mb-px"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() =>
+                    ask({
+                      title: "Mark the deposit as received?",
+                      message: `Mark the ${money(financials.earnestMoney)} deposit as received? This checks the checklist step that says the deposit arrived. Later tasks still wait until the whole earnest checklist task is finished.`,
+                      confirmLabel: "Mark as received",
+                      run: () => updateFinancials(file.id, { earnestMoneyStatus: "received" }),
+                    })
+                  }
+                >
+                  Mark as received
+                </Button>
               )}
-            >
-              {financials.earnestMoneyStatus === "received" ? "Received" : "Pending"}
-            </button>
+            </div>
           </div>
         </div>
       </section>
@@ -147,13 +254,30 @@ export function FinancialsSection({ file, focus }: { file: TransactionFile; focu
               type="number"
               leading="$"
               min={0}
-              value={financials.rebate || ""}
-              onChange={(e) => {
-                const next = Number(e.target.value);
-                updateFinancials(file.id, { rebate: Number.isFinite(next) && next > 0 ? next : 0 });
-              }}
+              value={rebateText}
+              onChange={(e) => setRebateText(e.target.value)}
+              onBlur={() =>
+                commitAmount(
+                  rebateText,
+                  financials.rebate || 0,
+                  setRebateText,
+                  (next) =>
+                    ask({
+                      title: next > 0 ? "Save this client rebate?" : "Remove the client rebate?",
+                      message:
+                        next > 0
+                          ? `Give ${money(next)} back to ${file.clientName || "your client"} from your own pay? Take-home will drop by that amount.`
+                          : `Remove the ${money(financials.rebate || 0)} rebate? It will no longer come out of your take-home.`,
+                      confirmLabel: next > 0 ? "Save rebate" : "Remove rebate",
+                      run: () => updateFinancials(file.id, { rebate: next }),
+                      cancel: () => setRebateText(amountText(financials.rebate)),
+                    }),
+                  true
+                )
+              }
+              onKeyDown={commitOnEnter}
               placeholder="0"
-              hint="Comes out of your take-home below."
+              hint="Comes out of your take-home below. Press Enter, then confirm."
             />
           </div>
           {payout.rebate > 0 && payout.rebate > payout.beforeRebate && (
@@ -263,7 +387,7 @@ export function FinancialsSection({ file, focus }: { file: TransactionFile; focu
                           key={offer.id}
                           offer={offer}
                           listPrice={file.listPrice}
-                          onAccept={() => setOfferStatus(file.id, offer.id, "accepted")}
+                          onAccept={() => setAccepting(offer)}
                           onCounter={() => setOfferStatus(file.id, offer.id, "countered")}
                           onReject={() => setOfferStatus(file.id, offer.id, "rejected")}
                         />
@@ -285,8 +409,91 @@ export function FinancialsSection({ file, focus }: { file: TransactionFile; focu
           setShowOfferModal(false);
         }}
       />
+
+      <ConfirmDialog
+        open={confirm !== null}
+        title={confirm?.title ?? ""}
+        message={confirm?.message ?? ""}
+        confirmLabel={confirm?.confirmLabel}
+        onClose={closeConfirm}
+        onConfirm={runConfirm}
+      />
+      <ConfirmDialog
+        open={accepting !== null}
+        title="Accept this offer?"
+        message={accepting ? acceptMessage(accepting, file.side) : ""}
+        confirmLabel="Accept offer"
+        onClose={() => setAccepting(null)}
+        onConfirm={() => {
+          if (!accepting) return;
+          setOfferStatus(file.id, accepting.id, "accepted");
+          setAccepting(null);
+        }}
+      />
     </div>
   );
+}
+
+type ConfirmAsk = {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  run: () => void;
+  cancel?: () => void;
+};
+
+function amountText(value?: number) {
+  return value ? String(value) : "";
+}
+
+function percentText(rate?: number) {
+  return rate ? String(+(rate * 100).toFixed(2)) : "";
+}
+
+function commitOnEnter(event: React.KeyboardEvent<HTMLInputElement>) {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  event.currentTarget.blur();
+}
+
+function commitAmount(
+  text: string,
+  saved: number,
+  restore: (value: string) => void,
+  ask: (next: number) => void,
+  allowZero = false
+) {
+  const next = Number(text);
+  const current = saved || 0;
+  if (!Number.isFinite(next) || next < 0 || (!allowZero && next <= 0) || next === current) {
+    restore(amountText(current));
+    return;
+  }
+  ask(next);
+}
+
+function commitPercent(
+  text: string,
+  saved: number,
+  restore: (value: string) => void,
+  ask: (next: number) => void
+) {
+  const next = Number(text) / 100;
+  if (!Number.isFinite(next) || next < 0 || Math.round(next * 10000) === Math.round((saved || 0) * 10000)) {
+    restore(percentText(saved));
+    return;
+  }
+  ask(next);
+}
+
+function acceptMessage(offer: Offer, side: TransactionFile["side"]) {
+  const yourRate = side === "listing" ? offer.sellingAgentRate : offer.buyerAgentRate;
+  const yourLabel = side === "listing" ? "selling agent" : "buyer agent";
+  const rateLine = yourRate
+    ? ` Your ${yourLabel} percent becomes ${+(yourRate * 100).toFixed(2)}%.`
+    : "";
+  const agreementName = side === "listing" ? "listing agreement" : "buyer agreement";
+  return `Accept ${offer.buyerName}'s offer of ${money(offer.amount)}? This becomes the sale price on the Money page and the ${agreementName}.${rateLine} Any other open offers will be marked rejected, and the file moves to Under Contract.`;
 }
 
 function rateLabel(rate: number | undefined, amount: number) {
@@ -295,21 +502,43 @@ function rateLabel(rate: number | undefined, amount: number) {
   return amount ? `${pct} · ${money(amount * rate)}` : pct;
 }
 
-/** The accepted offer sets the split. If none is accepted, the newest offer that names a rate does. */
+/** Before a contract, the newest offer that names a rate is the preview. */
 function splitSource(file: TransactionFile) {
-  const accepted = file.offers.find((offer) => offer.status === "accepted");
-  if (accepted && (accepted.sellingAgentRate != null || accepted.buyerAgentRate != null)) return accepted;
   return [...file.offers]
     .sort((a, b) => +new Date(b.receivedAt) - +new Date(a.receivedAt))
     .find((offer) => offer.sellingAgentRate != null || offer.buyerAgentRate != null);
 }
 
+function earnestNote(file: TransactionFile) {
+  const taskId = file.side === "listing" ? "earnest_money" : "earnest_money_buyer";
+  const done = file.checklist.find((task) => task.id === taskId)?.status === "completed";
+  if (file.financials.earnestMoneyStatus !== "received") {
+    return "Not in escrow yet. Later tasks wait until the earnest checklist task is finished.";
+  }
+  if (!done) {
+    return "In escrow. Later tasks still wait until the earnest checklist task is finished.";
+  }
+  return "In escrow, and the earnest checklist task is finished.";
+}
+
 function PaySplit({ file }: { file: TransactionFile }) {
-  const source = splitSource(file);
-  const price = source?.amount || file.financials.listPrice || file.listPrice || 0;
+  const accepted = file.offers.find((offer) => offer.status === "accepted");
+  const source = accepted ?? splitSource(file);
   const youAreSelling = file.side === "listing";
-  const selling = source?.sellingAgentRate ?? (youAreSelling ? file.financials.commissionRate : undefined);
-  const buyer = source?.buyerAgentRate ?? (youAreSelling ? undefined : file.financials.commissionRate);
+  const yourRate = file.financials.commissionRate || undefined;
+  const price = accepted
+    ? file.financials.listPrice || file.listPrice || accepted.amount || 0
+    : source?.amount || file.financials.listPrice || file.listPrice || 0;
+  const selling = accepted
+    ? youAreSelling
+      ? yourRate
+      : accepted.sellingAgentRate
+    : source?.sellingAgentRate ?? (youAreSelling ? yourRate : undefined);
+  const buyer = accepted
+    ? youAreSelling
+      ? accepted.buyerAgentRate
+      : yourRate
+    : source?.buyerAgentRate ?? (youAreSelling ? undefined : yourRate);
   const sellingPay = selling ? price * selling : 0;
   const buyerPay = buyer ? price * buyer : 0;
 
@@ -319,8 +548,8 @@ function PaySplit({ file }: { file: TransactionFile }) {
       <div className="rounded-2xl border border-hairline bg-surface px-5 py-4">
         <p className="max-w-xl text-[14px] leading-relaxed text-ink-600">
           The sale pays two agents. You are the {youAreSelling ? "selling agent" : "buyer agent"} on this folder.
-          {source?.status === "accepted"
-            ? " These percents come from the accepted offer."
+          {accepted
+            ? " Your side uses the deal figures above, so it matches your take-home. The other agent's percent stays on the accepted offer."
             : source
               ? " These percents come from the latest offer. Accept one to lock the split."
               : " Log an offer to enter both percents."}
@@ -556,6 +785,7 @@ function LogOfferModal({
   const [closingOn, setClosingOn] = useState("");
   const [offerStatus, setOfferStatus] = useState<"pending" | "countered" | "accepted">("pending");
   const [notes, setNotes] = useState("");
+  const [confirmAccept, setConfirmAccept] = useState(false);
 
   const reset = () => {
     setBuyerName("");
@@ -573,12 +803,13 @@ function LogOfferModal({
     setClosingOn("");
     setOfferStatus("pending");
     setNotes("");
+    setConfirmAccept(false);
   };
 
   const toIso = (day: string) => (day ? new Date(`${day}T12:00:00`).toISOString() : undefined);
   const toRate = (value: string) => (value ? Number(value) / 100 : undefined);
 
-  const submit = () => {
+  const finish = () => {
     if (!buyerName.trim() || !amount) return;
     onSubmit({
       buyerName: buyerName.trim(),
@@ -601,9 +832,20 @@ function LogOfferModal({
       notes: notes.trim() || undefined,
     });
     reset();
+    setConfirmAccept(false);
+  };
+
+  const submit = () => {
+    if (!buyerName.trim() || !amount) return;
+    if (offerStatus === "accepted") {
+      setConfirmAccept(true);
+      return;
+    }
+    finish();
   };
 
   return (
+    <>
     <Modal
       open={open}
       onClose={() => {
@@ -794,6 +1036,15 @@ function LogOfferModal({
         />
       </div>
     </Modal>
+    <ConfirmDialog
+      open={confirmAccept}
+      title="Accept this offer?"
+      message={`Accept ${buyerName.trim() || "this buyer"}'s offer of ${money(Number(amount) || 0)}? This becomes the sale price on the Money page and the agreement. Any other open offers will be marked rejected, and the file moves to Under Contract.`}
+      confirmLabel="Accept offer"
+      onClose={() => setConfirmAccept(false)}
+      onConfirm={finish}
+    />
+    </>
   );
 }
 

@@ -75,29 +75,31 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
 );
 Textarea.displayName = "Textarea";
 
-export const Select = forwardRef<HTMLSelectElement, React.SelectHTMLAttributes<HTMLSelectElement> & { label?: string }>(
-  ({ className, label, id, children, ...props }, ref) => (
-    <div className="space-y-1.5">
-      {label && (
-        <label htmlFor={id} className="block text-[14px] font-medium text-ink-700">
-          {label}
-        </label>
-      )}
-      <select
-        ref={ref}
-        id={id}
-        className={cn(fieldStyles, "cursor-pointer appearance-none bg-no-repeat pr-9", className)}
-        style={{
-          backgroundImage:
-            "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%238492a9' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.6' d='m6 8 4 4 4-4'/%3E%3C/svg%3E\")",
-          backgroundPosition: "right 0.6rem center",
-          backgroundSize: "1.1em 1.1em",
-        }}
-        {...props}
-      >
-        {children}
-      </select>
-    </div>
-  )
-);
+export const Select = forwardRef<
+  HTMLSelectElement,
+  React.SelectHTMLAttributes<HTMLSelectElement> & { label?: string; hint?: string }
+>(({ className, label, hint, id, children, ...props }, ref) => (
+  <div className="space-y-1.5">
+    {label && (
+      <label htmlFor={id} className="block text-[14px] font-medium text-ink-700">
+        {label}
+      </label>
+    )}
+    <select
+      ref={ref}
+      id={id}
+      className={cn(fieldStyles, "cursor-pointer appearance-none bg-no-repeat pr-9", className)}
+      style={{
+        backgroundImage:
+          "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%238492a9' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.6' d='m6 8 4 4 4-4'/%3E%3C/svg%3E\")",
+        backgroundPosition: "right 0.6rem center",
+        backgroundSize: "1.1em 1.1em",
+      }}
+      {...props}
+    >
+      {children}
+    </select>
+    {hint && <p className="text-xs text-ink-500">{hint}</p>}
+  </div>
+));
 Select.displayName = "Select";

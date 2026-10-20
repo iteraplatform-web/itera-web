@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { differenceInCalendarDays, format, parseISO, subDays } from "date-fns";
 import { CalendarDays, Eye, Home, Images, MessageSquareQuote, Search, Star, X } from "lucide-react";
 import { BlobImage } from "@/components/ui/blob-image";
@@ -309,14 +309,25 @@ function Line({ label, value, strong, minus }: { label: string; value: number; s
 
 function SellerMoney({ file }: { file: TransactionFile }) {
   const accepted = file.offers.find((o) => o.status === "accepted");
-  const [price, setPrice] = useState(accepted?.amount ?? file.listPrice ?? 0);
-  const [listingPct, setListingPct] = useState(
-    accepted?.sellingAgentRate != null ? +(accepted.sellingAgentRate * 100).toFixed(2) : +(file.financials.commissionRate * 100).toFixed(2)
-  );
-  const [buyerPct, setBuyerPct] = useState(accepted?.buyerAgentRate != null ? +(accepted.buyerAgentRate * 100).toFixed(2) : 2.5);
+  const seedPrice = accepted?.amount ?? file.financials.listPrice ?? file.listPrice ?? 0;
+  const seedListing =
+    accepted?.sellingAgentRate != null
+      ? +(accepted.sellingAgentRate * 100).toFixed(2)
+      : +(file.financials.commissionRate * 100).toFixed(2);
+  const seedBuyer = accepted?.buyerAgentRate != null ? +(accepted.buyerAgentRate * 100).toFixed(2) : 0;
+  const seedConcession = accepted?.concession ?? 0;
+  const [price, setPrice] = useState(seedPrice);
+  const [listingPct, setListingPct] = useState(seedListing);
+  const [buyerPct, setBuyerPct] = useState(seedBuyer);
   const [closingPct, setClosingPct] = useState(1);
   const [payoff, setPayoff] = useState(0);
-  const [concession, setConcession] = useState(accepted?.concession ?? 0);
+  const [concession, setConcession] = useState(seedConcession);
+  useEffect(() => {
+    setPrice(seedPrice);
+    setListingPct(seedListing);
+    setBuyerPct(seedBuyer);
+    setConcession(seedConcession);
+  }, [seedPrice, seedListing, seedBuyer, seedConcession]);
   const r = sellerNet({ price, listingCommissionPct: listingPct, buyerAgentPct: buyerPct, closingCostsPct: closingPct, payoff, concession });
 
   return (
@@ -382,13 +393,19 @@ function SellerMoney({ file }: { file: TransactionFile }) {
 
 function BuyerMoney({ file }: { file: TransactionFile }) {
   const accepted = file.offers.find((o) => o.status === "accepted");
-  const [price, setPrice] = useState(accepted?.amount ?? file.listPrice ?? 0);
+  const seedPrice = accepted?.amount ?? file.financials.listPrice ?? file.listPrice ?? 0;
+  const seedConcession = accepted?.concession ?? 0;
+  const [price, setPrice] = useState(seedPrice);
   const [downPct, setDownPct] = useState(20);
   const [closingPct, setClosingPct] = useState(2.5);
   const [rate, setRate] = useState(6.5);
-  const [taxIns, setTaxIns] = useState(Math.round(((file.listPrice || 0) * 0.022) / 12 + 150));
+  const [taxIns, setTaxIns] = useState(Math.round(((seedPrice || 0) * 0.022) / 12 + 150));
   const earnest = file.financials.earnestMoney || 0;
-  const [concession, setConcession] = useState(accepted?.concession ?? 0);
+  const [concession, setConcession] = useState(seedConcession);
+  useEffect(() => {
+    setPrice(seedPrice);
+    setConcession(seedConcession);
+  }, [seedPrice, seedConcession]);
   const r = buyerCashToClose({ price, downPct, closingCostsPct: closingPct, earnestMoney: earnest, ratePct: rate, taxInsuranceMonthly: taxIns, concession });
 
   return (

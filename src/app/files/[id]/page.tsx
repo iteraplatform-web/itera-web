@@ -21,6 +21,7 @@ import { MilestonesSection } from "@/components/workspace/milestones-section";
 import { AnalyticsSection } from "@/components/workspace/analytics-section";
 import { LoadingScreen } from "@/components/layout/auth-guard";
 import { NewFileWelcome } from "@/components/workspace/new-file-welcome";
+import { FolderContextCard } from "@/components/workspace/folder-context";
 import { useTransactionsStore } from "@/stores";
 import { getFileById } from "@/lib/selectors/transactions";
 import { ensureWorkFields } from "@/lib/work/defaults";
@@ -55,7 +56,11 @@ function FileContent({ id }: { id: string }) {
   }, [files, id]);
 
   return (
-    <WorkspaceShell id={id} section={section}>
+    <WorkspaceShell
+      id={id}
+      section={section}
+      actions={section === "overview" && file ? <FolderContextCard file={file} /> : undefined}
+    >
       {file && welcome && <NewFileWelcome file={file} />}
       {file && (
         <div key={section} className="animate-fade-in">

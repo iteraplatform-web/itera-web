@@ -9,6 +9,7 @@ import {
   rescheduleChecklist,
   ON_DOCUMENT_RECEIVED,
   ON_EARNEST_RECEIVED,
+  ON_REFERRAL_FEE_RECORDED,
   ON_EMAIL_SENT,
   ON_OFFER_LOGGED,
   ON_OFFER_ACCEPTED,
@@ -282,6 +283,7 @@ function applyAcceptedOffer(file: TransactionFile, offerId: string, actor: strin
   if (offer.earnestMoney) file.financials.earnestMoney = offer.earnestMoney;
   if (file.side === "listing" && offer.sellingAgentRate) file.financials.commissionRate = offer.sellingAgentRate;
   if (file.side === "buying" && offer.buyerAgentRate) file.financials.commissionRate = offer.buyerAgentRate;
+  syncDealToAgreement(file);
 
   file.contractDate = offer.acceptedAt;
   const ticked = runAutomation(file, ON_OFFER_ACCEPTED, "offer accepted", actor);
@@ -310,6 +312,59 @@ function applyAcceptedOffer(file: TransactionFile, offerId: string, actor: strin
     });
   }
   return { moved, ticked };
+}
+
+/** After a contract is accepted, deal figures and that offer are the same sale. */
+function syncAcceptedOffer(file: TransactionFile, updates: Partial<TransactionFile["financials"]>) {
+  const accepted = file.offers.find((offer) => offer.status === "accepted");
+  if (!accepted) return;
+  if (updates.listPrice) accepted.amount = updates.listPrice;
+  if (updates.earnestMoney !== undefined) accepted.earnestMoney = updates.earnestMoney;
+  if (updates.commissionRate !== undefined) {
+    if (file.side === "listing") accepted.sellingAgentRate = updates.commissionRate;
+    else accepted.buyerAgentRate = updates.commissionRate;
+  }
+}
+
+/** The listing agreement and the Money page show the same price and your percent. */
+function syncDealToAgreement(file: TransactionFile) {
+  if (file.side === "listing") {
+    const agreement = file.agreements.find((item) => item.kind === "listing");
+    if (!agreement) return;
+    agreement.listPrice = file.financials.listPrice;
+    agreement.commissionRate = file.financials.commissionRate;
+    return;
+  }
+  const agreement = file.agreements.find((item) => item.kind === "buyer");
+  if (!agreement) return;
+  agreement.commissionRate = file.financials.commissionRate;
+}
+
+const EARNEST_CONFIRM = [
+  { taskId: "earnest_money", subtaskStartsWith: "Confirm the deposit arrived" },
+  { taskId: "earnest_money_buyer", subtaskStartsWith: "Confirm delivery" },
+] as const;
+
+/** Turning the deposit back to pending reopens the "it arrived" checklist step. */
+function reopenEarnestConfirm(file: TransactionFile) {
+  let changed = false;
+  for (const rule of EARNEST_CONFIRM) {
+    const task = file.checklist.find((item) => item.id === rule.taskId);
+    if (!task) continue;
+    const sub = task.subtasks.find((item) => item.title.startsWith(rule.subtaskStartsWith));
+    if (!sub?.completed) continue;
+    sub.completed = false;
+    task.status = "in_progress";
+    task.completedAt = undefined;
+    task.completedBy = undefined;
+    changed = true;
+  }
+  if (changed) recalculateChecklist(file);
+}
+
+function noteEarnestFromChecklist(file: TransactionFile, taskId: string, received: boolean) {
+  if (taskId !== "earnest_money" && taskId !== "earnest_money_buyer") return;
+  file.financials.earnestMoneyStatus = received ? "received" : "pending";
 }
 
 function announceAutomation(ticked: string[]) {
@@ -557,6 +612,7 @@ export const useTransactionsStore = create<TransactionsState>()(
             t.completedAt = new Date().toISOString();
             t.completedBy = actor;
             t.subtasks = t.subtasks.map((st) => ({ ...st, completed: true }));
+            noteEarnestFromChecklist(f, t.id, true);
             f.activity.unshift({
               id: uuid(),
               type: "task_completed",
@@ -577,6 +633,7 @@ export const useTransactionsStore = create<TransactionsState>()(
             t.completedAt = undefined;
             t.completedBy = undefined;
             t.subtasks = t.subtasks.map((st) => ({ ...st, completed: false }));
+            noteEarnestFromChecklist(f, t.id, false);
           }
 
           recalculateChecklist(f);
@@ -606,7 +663,20 @@ export const useTransactionsStore = create<TransactionsState>()(
           if (!sub) return;
           sub.completed = !sub.completed;
 
+          const confirmsEarnest =
+            (task.id === "earnest_money" && sub.title.startsWith("Confirm the deposit arrived")) ||
+            (task.id === "earnest_money_buyer" && sub.title.startsWith("Confirm delivery"));
+          if (confirmsEarnest) {
+            file.financials.earnestMoneyStatus = sub.completed ? "received" : "pending";
+          }
+
           const allDone = task.subtasks.every((st) => st.completed);
+          if (
+            allDone &&
+            (task.id === "earnest_money" || task.id === "earnest_money_buyer")
+          ) {
+            file.financials.earnestMoneyStatus = "received";
+          }
           if (allDone) {
             task.status = "completed";
             task.completedAt = new Date().toISOString();
@@ -779,12 +849,19 @@ export const useTransactionsStore = create<TransactionsState>()(
           if (!file) return;
           const earnestNowReceived =
             updates.earnestMoneyStatus === "received" && file.financials.earnestMoneyStatus !== "received";
+          const earnestNowPending =
+            updates.earnestMoneyStatus === "pending" && file.financials.earnestMoneyStatus === "received";
           Object.assign(file.financials, updates);
           if (updates.listPrice) file.listPrice = updates.listPrice;
+          syncAcceptedOffer(file, updates);
+          if (updates.listPrice || updates.commissionRate !== undefined) syncDealToAgreement(file);
           file.updatedAt = new Date().toISOString();
           if (earnestNowReceived) {
             pushWorkActivity(file, "status_change", "Earnest money marked received", "Demo Agent");
             ticked = runAutomation(file, ON_EARNEST_RECEIVED, "earnest money received", "Demo Agent");
+          } else if (earnestNowPending) {
+            pushWorkActivity(file, "status_change", "Earnest money marked pending", "Demo Agent");
+            reopenEarnestConfirm(file);
           }
         });
         announceAutomation(ticked);
@@ -1494,6 +1571,7 @@ export const useTransactionsStore = create<TransactionsState>()(
       },
 
       updateAgreement: (fileId, agreementId, updates, actor = "Demo Agent") => {
+        let ticked: string[] = [];
         set((s) => {
           const f = s.files.find((x) => x.id === fileId);
           if (!f) return;
@@ -1506,12 +1584,25 @@ export const useTransactionsStore = create<TransactionsState>()(
           if (a.kind === "listing" && updates.listPrice) {
             f.listPrice = updates.listPrice;
             f.financials.listPrice = updates.listPrice;
+            syncAcceptedOffer(f, { listPrice: updates.listPrice });
           }
-          if (updates.commissionRate !== undefined) {
+          const ownsYourRate =
+            (a.kind === "listing" && f.side === "listing") || (a.kind === "buyer" && f.side === "buying");
+          if (ownsYourRate && updates.commissionRate !== undefined) {
             f.financials.commissionRate = updates.commissionRate;
+            syncAcceptedOffer(f, { commissionRate: updates.commissionRate });
+          }
+          if (a.kind === "referral" && updates.referralPercentage !== undefined) {
+            const pct = updates.referralPercentage > 0 ? updates.referralPercentage : undefined;
+            f.referralPercentage = pct;
+            f.financials.referralPercentage = pct;
+            if (pct) {
+              ticked = runAutomation(f, ON_REFERRAL_FEE_RECORDED, "referral fee saved", actor);
+            }
           }
           pushWorkActivity(f, "agreement_updated", `Agreement updated: ${a.kind}`, actor);
         });
+        announceAutomation(ticked);
         const updated = get().files.find((f) => f.id === fileId);
         const saved = updated?.agreements.find((a) => a.id === agreementId);
         if (

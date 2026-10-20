@@ -553,9 +553,8 @@ export interface TransactionFile {
 }
 
 /**
- * What the client can see is the agent's choice — the roadmap's "client view
- * management". Everything defaults on except money estimates, which some
- * agents prefer to walk through in person.
+ * What the client can see is the agent's choice. New portals start with every
+ * section on, including money estimates. The agent can turn any section off.
  */
 export interface PortalVisibility {
   progress: boolean;

@@ -135,6 +135,21 @@ function SidebarContent({
   const addNotification = useNotificationsStore((s) => s.addNotification);
   const firstName = user?.name?.split(" ")[0] ?? "there";
   const inFile = Boolean(file && activeSection);
+  const accountRow = (
+    <div className="mt-4 flex items-center justify-between border-t border-cream-300/70 pt-3">
+      <span className="truncate text-[14px] font-medium text-cream-ink/80">{user?.name}</span>
+      <button
+        onClick={() => {
+          logout();
+          router.push("/");
+        }}
+        className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[14px] font-medium text-cream-ink/70 hover:bg-cream-200/60 hover:text-cream-ink"
+      >
+        <LogOut className="h-4 w-4" />
+        Sign out
+      </button>
+    </div>
+  );
 
   const handleStatusChange = (status: TransactionStatus) => {
     if (!file || file.status === status) return;
@@ -175,6 +190,11 @@ function SidebarContent({
 
             <div className="mt-4">
               <FileSectionNav file={file} active={activeSection!} onNavigate={onNavigate} />
+            </div>
+
+            <div className="mt-5">
+              <FileFigures file={file} />
+              {accountRow}
             </div>
           </>
         ) : (
@@ -240,24 +260,13 @@ function SidebarContent({
         )}
       </div>
 
-      {/* ── Figures at the foot, like a statement ─────────────── */}
-      <div className="relative shrink-0 px-5 pb-4">
-        {inFile && file ? <FileFigures file={file} /> : <PortfolioFigures files={files} />}
-
-        <div className="mt-4 flex items-center justify-between border-t border-cream-300/70 pt-3">
-          <span className="truncate text-[14px] font-medium text-cream-ink/80">{user?.name}</span>
-          <button
-            onClick={() => {
-              logout();
-              router.push("/");
-            }}
-            className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[14px] font-medium text-cream-ink/70 hover:bg-cream-200/60 hover:text-cream-ink"
-          >
-            <LogOut className="h-4 w-4" />
-            Sign out
-          </button>
+      {/* Home keeps the pipeline figures pinned. A file page tucks them under the menu. */}
+      {!inFile && (
+        <div className="relative shrink-0 px-5 pb-4">
+          <PortfolioFigures files={files} />
+          {accountRow}
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -113,6 +113,11 @@ export const ON_EARNEST_RECEIVED: AutomationRule[] = [
   { taskId: "earnest_money_buyer", subtaskStartsWith: "Confirm delivery" },
 ];
 
+/** Saving a referral percent on the agreement is recording the fee for closing. */
+export const ON_REFERRAL_FEE_RECORDED: AutomationRule[] = [
+  { taskId: "referral_agreement", subtaskStartsWith: "Record the fee split" },
+];
+
 /**
  * Applies rules to a checklist in place. Returns the titles of the steps it
  * ticked, so the caller can log them and tell the agent.

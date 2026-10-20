@@ -39,11 +39,10 @@ import { sectionHref } from "@/components/workspace/workspace-sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
-import { calculatePayout, money } from "@/lib/work/payout";
 import { FROM_CONTRACT } from "@/lib/checklist/rules";
 import { listingExpiryWarning, listingTermEnd } from "@/lib/work/listing-expiry";
 import { ExtendListingButton } from "@/components/workspace/extend-listing";
-import { FolderContextCard } from "@/components/workspace/folder-context";
+import { DealContactsCard } from "@/components/workspace/deal-contacts";
 import { cn } from "@/lib/utils/cn";
 import type { ChecklistTask, TransactionFile } from "@/types";
 
@@ -56,19 +55,29 @@ const CLOSED = new Set(["closed", "dropped", "terminated", "expired"]);
  */
 export function OverviewSection({ file }: { file: TransactionFile }) {
   return (
-    <div className="space-y-6">
-      <FolderContextCard file={file} />
+    <div className="flex flex-col gap-4">
       <LatestMessageCard file={file} />
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
-        <div className="min-w-0 space-y-6">
-          <NextUpCard file={file} />
-          <WaitingOnCard file={file} />
+      {/* On a wide screen each column stacks on its own, so a short card does not
+          leave a hole beside a taller one. On a phone the order is next, dates, documents, reminders. */}
+      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.85fr)] lg:items-start">
+        <div className="contents lg:flex lg:min-w-0 lg:flex-col lg:gap-4">
+          <div className="order-1 min-w-0 lg:order-none">
+            <NextUpCard file={file} />
+          </div>
+          <div className="order-3 min-w-0 empty:hidden lg:order-none">
+            <WaitingOnCard file={file} />
+          </div>
         </div>
-        <div className="min-w-0 space-y-6">
-          <KeyDatesCard file={file} />
-          <RemindersCard file={file} />
+        <div className="contents lg:flex lg:min-w-0 lg:flex-col lg:gap-4">
+          <div className="order-2 min-w-0 lg:order-none">
+            <KeyDatesCard file={file} />
+          </div>
+          <div className="order-4 min-w-0 lg:order-none">
+            <RemindersCard file={file} />
+          </div>
         </div>
       </div>
+      <DealContactsCard file={file} />
     </div>
   );
 }
@@ -95,14 +104,14 @@ function Panel({
         tone === "alert" ? "border-red-200" : "border-hairline"
       )}
     >
-      <header className="flex items-center justify-between gap-3 border-b border-hairline px-5 py-4">
-        <h2 className="flex items-center gap-2.5 text-[17px] font-semibold text-ink-950">
-          <Icon className={cn("h-5 w-5", tone === "alert" ? "text-red-600" : "text-ink-500")} />
+      <header className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-3">
+        <h2 className="flex items-center gap-2 text-[16px] font-semibold text-ink-950">
+          <Icon className={cn("h-4.5 w-4.5", tone === "alert" ? "text-red-600" : "text-ink-500")} />
           {title}
         </h2>
         {action}
       </header>
-      <div className="p-5">{children}</div>
+      <div className="p-4">{children}</div>
     </section>
   );
 }
@@ -166,7 +175,7 @@ function NextUpCard({ file }: { file: TransactionFile }) {
       }
     >
       {overdue > 0 && (
-        <p className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-[15px] font-medium text-red-800">
+        <p className="mb-3 rounded-xl bg-red-50 px-3.5 py-2.5 text-[15px] font-medium text-red-800">
           {overdue} task{overdue === 1 ? " is" : "s are"} past due. Start with the first one below.
         </p>
       )}
@@ -180,7 +189,7 @@ function NextUpCard({ file }: { file: TransactionFile }) {
           </p>
         </div>
       ) : (
-        <ol className="space-y-3">
+        <ol className="space-y-2.5">
           {shown.map((task, i) => (
             <NextTaskRow key={task.id} task={task} file={file} first={i === 0} onDone={() => toggleTask(file.id, task.id)} />
           ))}
@@ -218,7 +227,7 @@ function NextTaskRow({
   return (
     <li
       className={cn(
-        "rounded-xl border p-4",
+        "rounded-xl border p-3.5",
         first ? "border-itera-200 bg-itera-50/40" : "border-hairline bg-surface"
       )}
     >
@@ -242,7 +251,7 @@ function NextTaskRow({
         )}
       </div>
 
-      <div className="mt-3.5 flex flex-wrap items-center gap-2">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         {target && (
           <Link href={sectionHref(file.id, target.section, target.focus)}>
             <Button size="sm" variant={first ? "primary" : "secondary"}>
@@ -284,7 +293,7 @@ function WaitingOnCard({ file }: { file: TransactionFile }) {
     >
       <ul className="divide-y divide-hairline">
         {shown.map((d) => (
-          <li key={d.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+          <li key={d.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[16px] text-ink-900">{d.name}</span>
               <span className="block text-[14px] text-ink-500">
@@ -316,7 +325,7 @@ function LatestMessageCard({ file }: { file: TransactionFile }) {
   return (
     <Link
       href={sectionHref(file.id, "communications", "thread")}
-      className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 hover:shadow-md"
+      className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 hover:shadow-md"
     >
       <MessageSquare className="h-5 w-5 shrink-0 text-amber-700" />
       <span className="min-w-0 flex-1">
@@ -402,7 +411,7 @@ function RemindersCard({ file }: { file: TransactionFile }) {
               <li
                 key={r.id}
                 className={cn(
-                  "flex flex-wrap items-center gap-3 rounded-xl border px-3.5 py-3",
+                  "flex flex-wrap items-center gap-2.5 rounded-xl border px-3 py-2.5",
                   r.done ? "border-hairline bg-canvas" : due ? "border-amber-300 bg-amber-50" : "border-hairline bg-surface"
                 )}
               >
@@ -543,8 +552,8 @@ function KeyDatesCard({ file }: { file: TransactionFile }) {
       }
     >
       {daysToClose !== null && !CLOSED.has(file.status) && (
-        <div className="mb-4 flex items-baseline gap-2 rounded-xl bg-ink-950 px-4 py-3.5 text-white">
-          <span className="tnum text-[30px] font-bold leading-none">{Math.max(daysToClose, 0)}</span>
+        <div className="mb-3 flex items-baseline gap-2 rounded-xl bg-ink-950 px-3.5 py-3 text-white">
+          <span className="tnum text-[28px] font-bold leading-none">{Math.max(daysToClose, 0)}</span>
           <span className="text-[15px] text-ink-300">
             {daysToClose > 0 ? `day${daysToClose === 1 ? "" : "s"} until closing` : daysToClose === 0 ? "Closing is today" : "Closing date has passed"}
           </span>
@@ -552,14 +561,14 @@ function KeyDatesCard({ file }: { file: TransactionFile }) {
       )}
       <dl className="divide-y divide-hairline">
         {rows.map((r) => (
-          <div key={r.label} className="flex items-baseline justify-between gap-4 py-2.5">
+          <div key={r.label} className="flex items-baseline justify-between gap-3 py-2">
             <dt className="text-[15px] text-ink-500">{r.label}</dt>
             <dd className="text-right text-[15px] font-semibold text-ink-900">{r.value}</dd>
           </div>
         ))}
       </dl>
       {file.side === "listing" && listingEnds && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
           <p className="text-[14px] text-ink-600">
             {file.status === "expired"
               ? "This listing is expired."

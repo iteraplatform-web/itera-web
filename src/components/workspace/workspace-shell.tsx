@@ -12,6 +12,7 @@ import { useTransactionsStore } from "@/stores";
 import { useNotificationsStore } from "@/stores/notifications-store";
 import { getFileById } from "@/lib/selectors/transactions";
 import { STATUS_THEME } from "@/lib/utils/status-theme";
+import { cn } from "@/lib/utils/cn";
 import { SECTION_LABELS, type TransactionStatus, type WorkspaceSection } from "@/types";
 import { ensureWorkFields } from "@/lib/work/defaults";
 
@@ -66,7 +67,7 @@ export const SECTION_META: Record<WorkspaceSection, { title: string; blurb: stri
   },
   milestones: {
     title: "Milestones & Agreements",
-    blurb: "Agreements, inspection, appraisal, title, and closing progress.",
+    blurb: "The contracts on this file, then each step from the deposit to closing.",
   },
   notes: {
     title: "Notes & Activity",
@@ -88,12 +89,14 @@ export function WorkspaceShell({
   section,
   title,
   blurb,
+  actions,
 }: {
   id: string;
   children: React.ReactNode;
   section: WorkspaceSection;
   title?: string;
   blurb?: string;
+  actions?: React.ReactNode;
 }) {
   const files = useTransactionsStore((s) => s.files);
   const raw = useMemo(() => getFileById(files, id), [files, id]);
@@ -154,10 +157,13 @@ export function WorkspaceShell({
           </div>
         )}
 
-        <div className="mt-6">
-          <div className="mb-4">
-            <h1 className="font-serif text-[32px] font-medium leading-tight tracking-[-0.01em] text-ink-950">{title ?? navFor(section, file).label}</h1>
-            <p className="mt-1 text-[16px] text-ink-600">{blurb ?? meta.blurb}</p>
+        <div className={section === "overview" ? "mt-4" : "mt-6"}>
+          <div className={cn("flex flex-wrap items-start justify-between gap-x-4", section === "overview" ? "mb-3 gap-y-2" : "mb-4 gap-y-3")}>
+            <div className="min-w-0 flex-1">
+              <h1 className="font-serif text-[32px] font-medium leading-tight tracking-[-0.01em] text-ink-950">{title ?? navFor(section, file).label}</h1>
+              <p className="mt-1 text-[16px] text-ink-600">{blurb ?? meta.blurb}</p>
+            </div>
+            {actions && <div className="pt-1">{actions}</div>}
           </div>
           <SubTabs file={file} active={section} />
           {/* Overview / portal manage their own layout; other sections sit in one card. */}

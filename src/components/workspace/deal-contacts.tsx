@@ -99,16 +99,16 @@ export function DealContactsCard({ file, embedded = false }: { file: Transaction
 
   return (
     <section className={embedded ? "border-t border-hairline" : "overflow-hidden rounded-2xl border border-hairline bg-surface shadow-sm"}>
-      <header className="flex items-center justify-between gap-3 border-b border-hairline px-5 py-4">
-        <h2 className="flex items-center gap-2.5 text-[17px] font-semibold text-ink-950">
-          <Users className="h-5 w-5 text-ink-500" />
+      <header className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-3">
+        <h2 className="flex items-center gap-2 text-[16px] font-semibold text-ink-950">
+          <Users className="h-4.5 w-4.5 text-ink-500" />
           People on this deal
         </h2>
         <Button size="xs" variant="secondary" onClick={startEdit}>
           Edit contacts
         </Button>
       </header>
-      <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-2.5 p-4 sm:grid-cols-2 xl:grid-cols-4">
         <ClientCard file={file} />
         {KEYS.map((key) => (
           <PersonCard key={key} role={roleFor(file, key).role} contact={contacts[key]} />
@@ -169,7 +169,7 @@ export function DealContactsCard({ file, embedded = false }: { file: Transaction
 
 function ClientCard({ file }: { file: TransactionFile }) {
   return (
-    <article className="rounded-xl border border-hairline bg-canvas px-4 py-3">
+    <article className="rounded-xl border border-hairline bg-canvas px-3.5 py-2.5">
       <p className="text-[12px] font-semibold uppercase tracking-wide text-ink-500">Your client</p>
       <p className="mt-1 text-[15px] font-semibold text-ink-950">{file.clientName || "No name yet"}</p>
       {file.coClientName && <p className="text-[13px] text-ink-600">With {file.coClientName}</p>}
@@ -183,7 +183,7 @@ function ClientCard({ file }: { file: TransactionFile }) {
 
 function PersonCard({ role, contact }: { role: string; contact: DealContact }) {
   return (
-    <article className="rounded-xl border border-hairline bg-canvas px-4 py-3">
+    <article className="rounded-xl border border-hairline bg-canvas px-3.5 py-2.5">
       <p className="text-[12px] font-semibold uppercase tracking-wide text-ink-500">{role}</p>
       {filled(contact) ? (
         <>
