@@ -343,7 +343,7 @@ function AgreementCard({
           size="sm"
           onClick={() => {
             const next =
-              shown.kind === "listing" && !(draft.listPrice > 0)
+              shown.kind === "listing" && !((draft.listPrice ?? 0) > 0)
                 ? { ...draft, listPrice: shown.listPrice }
                 : draft;
             if (next !== draft) setDraft(next);
@@ -366,7 +366,7 @@ function AgreementCard({
         onClose={() => setConfirm(null)}
         onConfirm={() => {
           onSave(
-            shown.kind === "listing" && !(draft.listPrice > 0)
+            shown.kind === "listing" && !((draft.listPrice ?? 0) > 0)
               ? { ...draft, listPrice: shown.listPrice }
               : draft
           );
