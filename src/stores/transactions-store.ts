@@ -1519,20 +1519,37 @@ export const useTransactionsStore = create<TransactionsState>()(
       },
 
       updateShowings: (fileId, updates, actor = "Demo Agent") => {
+        let title = "Showings saved";
+        let message = "Access instructions are on the file";
+        let saved = false;
         set((s) => {
           const f = s.files.find((x) => x.id === fileId);
           if (!f) return;
-          const prevCount = f.showings.appointments.length;
+          saved = true;
+          const prev = f.showings.appointments;
+          const next = updates.appointments;
+          let activity = "Showing instructions updated";
+          if (next) {
+            const prevCancelled = prev.filter((a) => a.status === "cancelled").length;
+            const nextCancelled = next.filter((a) => a.status === "cancelled").length;
+            if (next.length > prev.length) {
+              activity = "Visit added";
+              title = "Visit added";
+              message = "It is on the house folder.";
+            } else if (nextCancelled > prevCancelled) {
+              activity = "Visit cancelled";
+              title = "Visit cancelled";
+              message = "It stays on the folder so it is not added a second time.";
+            } else {
+              activity = "Visit updated";
+              title = "Visit updated";
+              message = "Time or feedback is saved on the house folder.";
+            }
+          }
           Object.assign(f.showings, updates, { updatedAt: new Date().toISOString() });
-          const logged = (updates.appointments?.length ?? prevCount) > prevCount;
-          pushWorkActivity(
-            f,
-            "showing_logged",
-            logged ? "Showing logged" : "Showing instructions updated",
-            actor
-          );
+          pushWorkActivity(f, "showing_logged", activity, actor);
         });
-        toast.success("Showings saved", "Access and feedback are on the file");
+        if (saved) toast.success(title, message);
       },
 
       updateMarketing: (fileId, updates, actor = "Demo Agent") => {

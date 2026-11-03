@@ -115,12 +115,14 @@ export function daysOnMarket(file: TransactionFile): number | null {
 }
 
 export function fileAnalytics(file: TransactionFile) {
-  const showings = file.showings.appointments.length;
+  const openShowings = file.showings.appointments.filter((a) => a.status !== "cancelled");
+  const rated = openShowings.filter((a) => a.feedback.trim());
+  const showings = openShowings.length;
   const sentiment = {
-    hot: file.showings.appointments.filter((a) => a.sentiment === "hot").length,
-    warm: file.showings.appointments.filter((a) => a.sentiment === "warm").length,
-    cool: file.showings.appointments.filter((a) => a.sentiment === "cool").length,
-    pass: file.showings.appointments.filter((a) => a.sentiment === "pass").length,
+    hot: rated.filter((a) => a.sentiment === "hot").length,
+    warm: rated.filter((a) => a.sentiment === "warm").length,
+    cool: rated.filter((a) => a.sentiment === "cool").length,
+    pass: rated.filter((a) => a.sentiment === "pass").length,
   };
   const offers = file.offers;
   const offerAmounts = offers.map((o) => o.amount);

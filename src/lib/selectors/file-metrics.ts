@@ -100,7 +100,7 @@ export function getPortfolioWorkStats(files: TransactionFile[]) {
   let filesWithShowings = 0;
 
   open.forEach((f) => {
-    const count = f.showings?.appointments?.length ?? 0;
+    const count = f.showings?.appointments?.filter((a) => a.status !== "cancelled").length ?? 0;
     totalShowings += count;
     if (count > 0) {
       filesWithShowings += 1;

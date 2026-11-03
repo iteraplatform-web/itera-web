@@ -46,8 +46,8 @@ export const SECTION_META: Record<WorkspaceSection, { title: string; blurb: stri
     blurb: "Upload property photos, choose the cover image, and add captions.",
   },
   showings: {
-    title: "Showings",
-    blurb: "Access instructions, appointments, and feedback from each showing.",
+    title: "Visits",
+    blurb: "Booked visits for this house. Fetch them when ShowingTime email is connected, or add one by hand.",
   },
   marketing: {
     title: "Marketing",

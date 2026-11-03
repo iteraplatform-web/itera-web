@@ -391,6 +391,9 @@ export interface MediaWork {
 
 export type ShowingFeedbackSentiment = "hot" | "warm" | "cool" | "pass";
 
+/** Missing means the visit is still booked. Cancelled visits stay on the folder. */
+export type ShowingVisitStatus = "booked" | "cancelled";
+
 export interface ShowingAppointment {
   id: string;
   scheduledAt: string;
@@ -399,6 +402,7 @@ export interface ShowingAppointment {
   sentiment: ShowingFeedbackSentiment;
   /** Buying side: address of the property toured. */
   propertyAddress?: string;
+  status?: ShowingVisitStatus;
 }
 
 export interface ShowingsWork {
@@ -677,7 +681,7 @@ export const SECTION_LABELS: Record<WorkspaceSection, string> = {
   pricing: "Pricing / CMA",
   listing_details: "Listing Details",
   property_work: "Prep & Photos",
-  showings: "Showings",
+  showings: "Visits",
   marketing: "Marketing",
   documents: "Documents",
   photos: "Photos",

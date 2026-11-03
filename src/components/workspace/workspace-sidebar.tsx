@@ -99,7 +99,7 @@ export const FILE_NAV: NavDef[] = [
       { key: "property_work", label: "Prep", sides: ["listing"] },
       { key: "marketing", label: "Search criteria", sides: ["buying"] },
       { key: "photos", label: "Photos" },
-      { key: "showings", label: "Showings" },
+      { key: "showings", label: "Visits" },
       { key: "marketing", label: "Marketing", sides: ["listing"] },
       { key: "analytics", label: "Performance", sides: ["listing"] },
     ],

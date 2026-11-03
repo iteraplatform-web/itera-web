@@ -7,6 +7,7 @@ import { format, parseISO } from "date-fns";
 import {
   ArrowLeft,
   Bell,
+  CalendarDays,
   ChevronRight,
   Eye,
   FileSpreadsheet,
@@ -42,6 +43,7 @@ export interface Crumb {
 const MAIN_NAV = [
   { href: "/dashboard", label: "Home", icon: Home, match: (p: string) => p === "/dashboard" },
   { href: "/tasks", label: "Tasks", icon: ListChecks, match: (p: string) => p.startsWith("/tasks") },
+  { href: "/visits", label: "Visits", icon: CalendarDays, match: (p: string) => p.startsWith("/visits") },
   { href: "/import", label: "Import Spreadsheet", icon: FileSpreadsheet, match: (p: string) => p.startsWith("/import") },
   { href: "/settings", label: "Settings", icon: Settings, match: (p: string) => p.startsWith("/settings") },
 ];

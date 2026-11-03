@@ -27,13 +27,16 @@ function SellerHome({ file }: { file: TransactionFile }) {
   const [viewing, setViewing] = useState<Photo | null>(null);
   const photos = file.photos ?? [];
   const ld = file.listingDetails;
-  const appts = [...(file.showings?.appointments ?? [])].sort((a, b) => b.scheduledAt.localeCompare(a.scheduledAt));
+  const appts = [...(file.showings?.appointments ?? [])]
+    .filter((a) => a.status !== "cancelled")
+    .sort((a, b) => b.scheduledAt.localeCompare(a.scheduledAt));
   const liveTask = file.checklist.find((t) => t.id === "mls_entry");
   const daysOnMarket = liveTask?.completedAt ? differenceInCalendarDays(new Date(), parseISO(liveTask.completedAt)) : null;
   const lastWeek = appts.filter((a) => parseISO(a.scheduledAt) >= subDays(new Date(), 7)).length;
+  const withFeedback = appts.filter((a) => a.feedback.trim());
   const counts = (["hot", "warm", "cool", "pass"] as ShowingFeedbackSentiment[]).map((s) => ({
     s,
-    n: appts.filter((a) => a.sentiment === s).length,
+    n: withFeedback.filter((a) => a.sentiment === s).length,
   }));
   const openHouses = file.marketing?.openHouses ?? [];
 
@@ -89,7 +92,7 @@ function SellerHome({ file }: { file: TransactionFile }) {
         <div className="grid gap-6 lg:grid-cols-2">
           {file.portalAccess?.visibility.showingFeedback !== false && (
           <PCard title="What buyers are saying" icon={MessageSquareQuote}>
-            {appts.length === 0 ? (
+            {withFeedback.length === 0 ? (
               <p className="text-[16px] text-ink-600">Feedback from showings will appear here.</p>
             ) : (
               <>
@@ -98,7 +101,7 @@ function SellerHome({ file }: { file: TransactionFile }) {
                     <li key={s} className="flex items-center gap-3">
                       <span className="w-28 shrink-0 text-[15px] text-ink-700">{SENTIMENT[s].label}</span>
                       <span className="h-3 flex-1 overflow-hidden rounded-full bg-ink-100">
-                        <span className={cn("block h-full rounded-full", SENTIMENT[s].bar)} style={{ width: `${(n / appts.length) * 100}%` }} />
+                        <span className={cn("block h-full rounded-full", SENTIMENT[s].bar)} style={{ width: `${(n / withFeedback.length) * 100}%` }} />
                       </span>
                       <span className="tnum w-6 text-right text-[15px] font-semibold text-ink-900">{n}</span>
                     </li>
@@ -160,7 +163,7 @@ function SellerHome({ file }: { file: TransactionFile }) {
 
 function BuyerSearch({ file }: { file: TransactionFile }) {
   const bs = file.buyerSearch;
-  const toured = (file.showings?.appointments ?? []).filter((a) => a.propertyAddress);
+  const toured = (file.showings?.appointments ?? []).filter((a) => a.propertyAddress && a.status !== "cancelled");
   const criteria = [
     bs?.minPrice || bs?.maxPrice ? { label: "Budget", value: `${money(bs.minPrice)} – ${money(bs.maxPrice)}` } : null,
     bs?.bedsMin ? { label: "Bedrooms", value: `${bs.bedsMin}+` } : null,
