@@ -11,7 +11,7 @@ import { Input, Select, Textarea } from "@/components/ui/input";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState, Segmented } from "@/components/ui/misc";
-import { useTransactionsStore } from "@/stores";
+import { useAuthStore, useTransactionsStore } from "@/stores";
 import { toast } from "@/stores/toast-store";
 import { cn } from "@/lib/utils/cn";
 import { formatDate } from "@/lib/utils/dates";
@@ -24,7 +24,10 @@ import {
   type VisitBucket,
   type VisitRow,
 } from "@/lib/work/visits";
-import type { ShowingAppointment, ShowingFeedbackSentiment, TransactionFile } from "@/types";
+import { VisitNoticeModal } from "@/components/workspace/visit-notice-modal";
+import { VisitVisitorNotes } from "@/components/workspace/visitor-alerts";
+import { findListingForAddress, hasVisitorInfo } from "@/lib/work/visitor-alerts";
+import type { SentEmail, ShowingAppointment, ShowingFeedbackSentiment, ShowingsWork, TransactionFile } from "@/types";
 
 type Filter = "all" | VisitBucket;
 
@@ -53,12 +56,19 @@ const SENTIMENT_LABEL: Record<ShowingFeedbackSentiment, string> = {
 export function VisitsBoard({
   files,
   lockedFileId,
+  listings,
 }: {
   files: TransactionFile[];
   /** When set, every new visit is saved on this one house folder. */
   lockedFileId?: string;
+  /** Listing folders used to show camera and pet warnings on a buyer visit. */
+  listings?: TransactionFile[];
 }) {
+  const catalog = listings ?? files;
   const updateShowings = useTransactionsStore((s) => s.updateShowings);
+  const sendVisitNotice = useTransactionsStore((s) => s.sendVisitNotice);
+  const userName = useAuthStore((s) => s.user?.name);
+  const [notice, setNotice] = useState<SentEmail | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [fetching, setFetching] = useState(false);
   const [showFetch, setShowFetch] = useState(false);
@@ -87,7 +97,7 @@ export function VisitsBoard({
   };
 
   const write = (file: TransactionFile, appointments: ShowingAppointment[]) => {
-    updateShowings(file.id, { appointments });
+    return updateShowings(file.id, { appointments }, userName);
   };
 
   const addVisit = (draft: {
@@ -95,6 +105,7 @@ export function VisitsBoard({
     agentOrBuyer: string;
     scheduledAt: string;
     propertyAddress: string;
+    visitorEmail: string;
   }) => {
     const file = files.find((f) => f.id === draft.fileId);
     if (!file) return;
@@ -114,6 +125,7 @@ export function VisitsBoard({
       feedback: "",
       sentiment: "warm",
       propertyAddress: file.side === "buying" ? draft.propertyAddress.trim() : undefined,
+      visitorEmail: file.side === "listing" ? draft.visitorEmail.trim() || undefined : undefined,
       status: "booked",
     };
     const clash = file.showings.appointments.some((a) => sameVisitSlot(a, next));
@@ -124,8 +136,9 @@ export function VisitsBoard({
       );
       return;
     }
-    write(file, [next, ...file.showings.appointments.map((a) => ({ ...a }))]);
+    const created = write(file, [next, ...file.showings.appointments.map((a) => ({ ...a }))]);
     setShowAdd(false);
+    if (created[0]) setNotice(created[0]);
   };
 
   const saveFeedback = (row: VisitRow, feedback: string, sentiment: ShowingFeedbackSentiment) => {
@@ -161,6 +174,11 @@ export function VisitsBoard({
       row.file.showings.appointments.map((a) => (a.id === row.appointment.id ? next : { ...a }))
     );
     setTimeFor(null);
+  };
+
+  const openNotice = (row: VisitRow) => {
+    const email = sendVisitNotice(row.file.id, row.appointment.id, userName);
+    if (email) setNotice(email);
   };
 
   const cancelVisit = (row: VisitRow) => {
@@ -249,9 +267,11 @@ export function VisitsBoard({
                       row={row}
                       showFolder={!lockedFileId}
                       divider={i > 0}
+                      visitorShowings={visitorShowingsFor(row, catalog)}
                       onFeedback={() => setFeedbackFor(row)}
                       onTime={() => setTimeFor(row)}
                       onCancel={() => setCancelFor(row)}
+                      onNotice={() => openNotice(row)}
                     />
                   ))}
                 </div>
@@ -304,6 +324,7 @@ export function VisitsBoard({
         key={addKey}
         open={showAdd}
         files={files}
+        listings={catalog}
         lockedFileId={lockedFileId}
         onClose={() => setShowAdd(false)}
         onSave={addVisit}
@@ -326,6 +347,8 @@ export function VisitsBoard({
           onSave={saveTime}
         />
       )}
+
+      <VisitNoticeModal email={notice} onClose={() => setNotice(null)} />
 
       <ConfirmDialog
         open={Boolean(cancelFor)}
@@ -350,20 +373,29 @@ function MiniStat({ label, value, alert }: { label: string; value: number; alert
   );
 }
 
+function visitorShowingsFor(row: VisitRow, catalog: TransactionFile[]): Partial<ShowingsWork> | undefined {
+  if (row.file.side === "listing") return row.file.showings;
+  return findListingForAddress(catalog, row.appointment.propertyAddress ?? "")?.showings;
+}
+
 function VisitCard({
   row,
   showFolder,
   divider,
+  visitorShowings,
   onFeedback,
   onTime,
   onCancel,
+  onNotice,
 }: {
   row: VisitRow;
   showFolder: boolean;
   divider: boolean;
+  visitorShowings?: Partial<ShowingsWork>;
   onFeedback: () => void;
   onTime: () => void;
   onCancel: () => void;
+  onNotice: () => void;
 }) {
   const { file, appointment, bucket } = row;
   const cancelled = bucket === "cancelled";
@@ -414,6 +446,27 @@ function VisitCard({
       {appointment.feedback && !cancelled && (
         <p className="mt-2 text-[14px] leading-relaxed text-ink-700">{appointment.feedback}</p>
       )}
+      {file.side === "listing" && !cancelled && (
+        <div className="mt-3 space-y-2 rounded-xl bg-canvas px-3 py-3">
+          <p className="text-[13px] font-semibold text-ink-800">What {appointment.agentOrBuyer} sees</p>
+          <p className="text-[13px] text-ink-600">
+            {visitPlace(file, appointment)} · {formatDate(appointment.scheduledAt, "EEE, MMM d, yyyy · h:mm a")}
+          </p>
+          {hasVisitorInfo(visitorShowings) ? (
+            <VisitVisitorNotes showings={visitorShowings} />
+          ) : (
+            <p className="text-[14px] text-ink-500">This listing has no visit warnings or guidelines yet.</p>
+          )}
+          <div>
+            <Button variant="ghost" size="xs" onClick={onNotice}>
+              {appointment.noticeEmailId ? "Open the demo email" : "Save demo email"}
+            </Button>
+          </div>
+        </div>
+      )}
+      {file.side === "buying" && !cancelled && hasVisitorInfo(visitorShowings) && (
+        <VisitVisitorNotes showings={visitorShowings} className="mt-3" />
+      )}
       {!cancelled && (
         <div className="mt-2 flex flex-wrap gap-1">
           <Button variant="ghost" size="xs" onClick={onFeedback}>
@@ -434,23 +487,36 @@ function VisitCard({
 function AddVisitModal({
   open,
   files,
+  listings,
   lockedFileId,
   onClose,
   onSave,
 }: {
   open: boolean;
   files: TransactionFile[];
+  listings: TransactionFile[];
   lockedFileId?: string;
   onClose: () => void;
-  onSave: (draft: { fileId: string; agentOrBuyer: string; scheduledAt: string; propertyAddress: string }) => void;
+  onSave: (draft: {
+    fileId: string;
+    agentOrBuyer: string;
+    scheduledAt: string;
+    propertyAddress: string;
+    visitorEmail: string;
+  }) => void;
 }) {
   const [fileId, setFileId] = useState(lockedFileId ?? files[0]?.id ?? "");
   const [agentOrBuyer, setAgentOrBuyer] = useState("");
   const [scheduledAt, setScheduledAt] = useState(toDateTimeLocal(new Date().toISOString()));
   const [propertyAddress, setPropertyAddress] = useState("");
+  const [visitorEmail, setVisitorEmail] = useState("");
 
   const selectedId = lockedFileId || fileId || files[0]?.id || "";
   const file = files.find((f) => f.id === selectedId);
+  const matchedListing =
+    file?.side === "listing"
+      ? file
+      : findListingForAddress(listings, propertyAddress);
 
   return (
     <Modal
@@ -470,6 +536,7 @@ function AddVisitModal({
                 agentOrBuyer,
                 scheduledAt,
                 propertyAddress,
+                visitorEmail,
               })
             }
             disabled={!file}
@@ -498,13 +565,40 @@ function AddVisitModal({
             ))}
           </Select>
         )}
+        {file?.side === "listing" &&
+          (hasVisitorInfo(file.showings) ? (
+            <VisitVisitorNotes showings={file.showings} />
+          ) : (
+            <p className="rounded-xl bg-canvas px-3 py-3 text-[14px] text-ink-500">
+              No cameras, pets, or guidelines yet. Add them on the listing, then book the visit.
+            </p>
+          ))}
+        {file?.side === "buying" && hasVisitorInfo(matchedListing?.showings) && (
+          <VisitVisitorNotes showings={matchedListing?.showings} />
+        )}
+        {file?.side === "buying" && propertyAddress.trim().length > 5 && !matchedListing && (
+          <p className="rounded-xl bg-canvas px-3 py-3 text-[14px] leading-relaxed text-ink-600">
+            This address is not one of your listings, so camera and pet warnings are not on file.
+          </p>
+        )}
         <Input
           id="visit-who"
-          label="Other agent or buyer"
+          label={file?.side === "listing" ? "Visiting agent" : "Other agent or buyer"}
           value={agentOrBuyer}
           onChange={(e) => setAgentOrBuyer(e.target.value)}
           placeholder="Name of the person coming"
         />
+        {file?.side === "listing" && (
+          <Input
+            id="visit-email"
+            label="Visiting agent's email"
+            type="email"
+            value={visitorEmail}
+            onChange={(e) => setVisitorEmail(e.target.value)}
+            placeholder="alex@brokerage.com"
+            hint="Demo only. The message is saved here. It is not sent through Gmail."
+          />
+        )}
         <Input
           id="visit-when"
           label="When"

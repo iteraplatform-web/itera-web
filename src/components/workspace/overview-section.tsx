@@ -22,11 +22,11 @@ import {
   Check,
   CheckCircle2,
   Clock,
-  FileText,
   Hourglass,
   Mail,
   MessageSquare,
   Phone,
+  Megaphone,
   Pin,
   Plus,
   Trash2,
@@ -39,8 +39,16 @@ import { sectionHref } from "@/components/workspace/workspace-sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
+import { Progress } from "@/components/ui/progress";
 import { FROM_CONTRACT } from "@/lib/checklist/rules";
 import { listingExpiryWarning, listingTermEnd } from "@/lib/work/listing-expiry";
+import {
+  lastOpenHouse,
+  launchPoints,
+  nextOpenHouse,
+  overviewMarketingFilled,
+  resolveMarketingDates,
+} from "@/lib/work/marketing-plan";
 import { ExtendListingButton } from "@/components/workspace/extend-listing";
 import { DealContactsCard } from "@/components/workspace/deal-contacts";
 import { cn } from "@/lib/utils/cn";
@@ -52,31 +60,32 @@ const CLOSED = new Set(["closed", "dropped", "terminated", "expired"]);
  * The file's home screen. Answers one question: what does this file need from
  * me today? Everything here is a shortcut — the full detail lives on the
  * other tabs, one click away.
+ *
+ * Each card is only as tall as its own content. The two columns stack on
+ * their own, so a longer task list never stretches Key dates, and marketing
+ * sits on its own row so a longer campaign never opens an empty pocket in
+ * Reminders. Phone order stays: Next up, Key dates, Waiting, Reminders.
  */
 export function OverviewSection({ file }: { file: TransactionFile }) {
+  const listing = file.side === "listing";
+
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
       <LatestMessageCard file={file} />
-      {/* On a wide screen each column stacks on its own, so a short card does not
-          leave a hole beside a taller one. On a phone the order is next, dates, documents, reminders. */}
-      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.85fr)] lg:items-start">
-        <div className="contents lg:flex lg:min-w-0 lg:flex-col lg:gap-4">
-          <div className="order-1 min-w-0 lg:order-none">
-            <NextUpCard file={file} />
-          </div>
-          <div className="order-3 min-w-0 empty:hidden lg:order-none">
-            <WaitingOnCard file={file} />
-          </div>
+
+      <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:items-start">
+        <div className="contents lg:flex lg:min-w-0 lg:flex-col lg:gap-3">
+          <NextUpCard file={file} className="order-1 lg:order-none" />
+          <WaitingOnCard file={file} className="order-3 lg:order-none" />
         </div>
-        <div className="contents lg:flex lg:min-w-0 lg:flex-col lg:gap-4">
-          <div className="order-2 min-w-0 lg:order-none">
-            <KeyDatesCard file={file} />
-          </div>
-          <div className="order-4 min-w-0 lg:order-none">
-            <RemindersCard file={file} />
-          </div>
+        <div className="contents lg:flex lg:min-w-0 lg:flex-col lg:gap-3">
+          <KeyDatesCard file={file} className="order-2 lg:order-none" />
+          <RemindersCard file={file} className="order-4 lg:order-none" />
         </div>
       </div>
+
+      {listing && <MarketingDatesOverviewCard file={file} />}
+
       <DealContactsCard file={file} />
     </div>
   );
@@ -90,28 +99,31 @@ function Panel({
   action,
   children,
   tone = "default",
+  className,
 }: {
   title: string;
   icon: React.ElementType;
   action?: React.ReactNode;
   children: React.ReactNode;
   tone?: "default" | "alert";
+  className?: string;
 }) {
   return (
     <section
       className={cn(
-        "overflow-hidden rounded-2xl border bg-surface shadow-sm",
-        tone === "alert" ? "border-red-200" : "border-hairline"
+        "flex flex-col overflow-hidden rounded-2xl border bg-surface shadow-sm",
+        tone === "alert" ? "border-red-200" : "border-hairline",
+        className
       )}
     >
-      <header className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-3">
+      <header className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-2.5">
         <h2 className="flex items-center gap-2 text-[16px] font-semibold text-ink-950">
           <Icon className={cn("h-4.5 w-4.5", tone === "alert" ? "text-red-600" : "text-ink-500")} />
           {title}
         </h2>
         {action}
       </header>
-      <div className="p-4">{children}</div>
+      <div className="flex flex-1 flex-col p-3.5 sm:p-4">{children}</div>
     </section>
   );
 }
@@ -136,7 +148,7 @@ const TONE_CHIP = {
 
 const SHOW_TASKS = 3;
 
-function NextUpCard({ file }: { file: TransactionFile }) {
+function NextUpCard({ file, className }: { file: TransactionFile; className?: string }) {
   const toggleTask = useTransactionsStore((s) => s.toggleTask);
 
   // Only work that can actually be done now, soonest first.
@@ -157,7 +169,7 @@ function NextUpCard({ file }: { file: TransactionFile }) {
 
   if (CLOSED.has(file.status) && actionable.length === 0) {
     return (
-      <Panel title="Next up" icon={CheckCircle2}>
+      <Panel title="Next up" icon={CheckCircle2} className={className}>
         <p className="text-[15px] text-ink-600">This file is {file.status}. There is nothing left to do on it.</p>
       </Panel>
     );
@@ -167,6 +179,7 @@ function NextUpCard({ file }: { file: TransactionFile }) {
     <Panel
       title="Next up"
       icon={Clock}
+      className={className}
       tone={overdue > 0 ? "alert" : "default"}
       action={
         <Link href={sectionHref(file.id, "checklist")} className="text-[14px] font-semibold text-itera-700 hover:text-itera-800">
@@ -276,7 +289,7 @@ function NextTaskRow({
 
 /* ── 2. Waiting on ──────────────────────────────────────────────────── */
 
-function WaitingOnCard({ file }: { file: TransactionFile }) {
+function WaitingOnCard({ file, className }: { file: TransactionFile; className?: string }) {
   const outstanding = file.documents.filter((d) => d.status === "needed");
   if (outstanding.length === 0 || CLOSED.has(file.status)) return null;
   const shown = outstanding.slice(0, 4);
@@ -285,6 +298,7 @@ function WaitingOnCard({ file }: { file: TransactionFile }) {
     <Panel
       title={`Waiting on ${outstanding.length} document${outstanding.length === 1 ? "" : "s"}`}
       icon={Hourglass}
+      className={className}
       action={
         <Link href={sectionHref(file.id, "documents")} className="text-[15px] font-semibold text-itera-700 hover:underline">
           All documents
@@ -349,7 +363,7 @@ const PRESETS = [
   { label: "Next week", at: () => addDays(new Date(), 7), hours: () => 9 },
 ];
 
-function RemindersCard({ file }: { file: TransactionFile }) {
+function RemindersCard({ file, className }: { file: TransactionFile; className?: string }) {
   const addReminder = useTransactionsStore((s) => s.addReminder);
   const toggleReminder = useTransactionsStore((s) => s.toggleReminder);
   const removeReminder = useTransactionsStore((s) => s.removeReminder);
@@ -392,6 +406,7 @@ function RemindersCard({ file }: { file: TransactionFile }) {
     <Panel
       title="Reminders"
       icon={Bell}
+      className={className}
       action={
         <Button size="xs" variant="secondary" onClick={() => { setAddToGoogle(false); setOpen(true); }}>
           <Plus className="h-3.5 w-3.5" />
@@ -513,9 +528,162 @@ function RemindersCard({ file }: { file: TransactionFile }) {
   );
 }
 
-/* ── 5. Key dates ───────────────────────────────────────────────────── */
+/* ── 5. Marketing dates (listing only) ──────────────────────────────── */
 
-function KeyDatesCard({ file }: { file: TransactionFile }) {
+function MarketingDatesOverviewCard({
+  file,
+  className,
+}: {
+  file: TransactionFile;
+  className?: string;
+}) {
+  const m = file.marketing;
+  const sheetLive = file.listingDetails.publishStatus === "published_external";
+  const points = launchPoints(m, sheetLive);
+  const done = points.filter((p) => p.done).length;
+  const required = points.filter((p) => !p.optional);
+  const requiredDone = required.filter((p) => p.done).length;
+  const filled = overviewMarketingFilled(m, file.listingDetails.publishedAt);
+  const upcomingHouse = nextOpenHouse(m.openHouses);
+  const pastHouse = lastOpenHouse(m.openHouses);
+  const goLive = resolveMarketingDates(m, file.listingDetails.publishedAt).goLiveAt;
+  const daysLive =
+    goLive && !CLOSED.has(file.status)
+      ? Math.max(0, differenceInCalendarDays(new Date(), parseISO(goLive)))
+      : null;
+  const launchPct = points.length ? Math.round((done / points.length) * 100) : 0;
+  const showings = file.showings.appointments.filter((a) => a.status !== "cancelled").length;
+  const openHouseVisitors = m.openHouses.reduce((n, h) => n + (h.visitors || 0), 0);
+  const nextMilestone =
+    filled.find((r) => r.upcoming) ??
+    filled.find((r) => {
+      if (!r.iso) return false;
+      return differenceInCalendarDays(parseISO(r.iso), new Date()) >= 0 && r.id !== "goLiveAt";
+    });
+
+  return (
+    <Panel
+      title="Marketing"
+      icon={Megaphone}
+      className={className}
+      action={
+        <Link href={sectionHref(file.id, "marketing")}>
+          <Button size="xs" variant="secondary">
+            Open
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Button>
+        </Link>
+      }
+    >
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+        <div className="rounded-xl bg-itera-50 px-3 py-2 ring-1 ring-inset ring-itera-100">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-itera-700">On market</p>
+          <p className="tnum mt-0.5 text-[22px] font-bold leading-none tracking-[-0.03em] text-itera-900">
+            {daysLive !== null ? daysLive : "—"}
+          </p>
+          <p className="mt-0.5 text-[12px] text-itera-700">
+            {daysLive === null ? "Not live yet" : daysLive === 0 ? "Launched today" : "days live"}
+          </p>
+        </div>
+        <div className="rounded-xl bg-canvas px-3 py-2 ring-1 ring-inset ring-hairline">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-500">Launch</p>
+          <p className="tnum mt-0.5 text-[22px] font-bold leading-none tracking-[-0.03em] text-ink-950">
+            {launchPct}
+            <span className="text-[13px] font-semibold text-ink-400">%</span>
+          </p>
+          <p className="mt-0.5 text-[12px] text-ink-500">
+            {requiredDone}/{required.length} required
+          </p>
+        </div>
+        <div className="rounded-xl border border-hairline bg-canvas/50 px-2.5 py-2 text-center">
+          <p className="tnum text-[16px] font-bold text-ink-950">{showings}</p>
+          <p className="text-[11px] font-medium text-ink-500">Showings</p>
+        </div>
+        <div className="rounded-xl border border-hairline bg-canvas/50 px-2.5 py-2 text-center">
+          <p className="tnum text-[16px] font-bold text-ink-950">{m.openHouses.length}</p>
+          <p className="text-[11px] font-medium text-ink-500">Open houses</p>
+        </div>
+        <div className="col-span-2 rounded-xl border border-hairline bg-canvas/50 px-2.5 py-2 text-center sm:col-span-1">
+          <p className="tnum text-[16px] font-bold text-ink-950">{openHouseVisitors}</p>
+          <p className="text-[11px] font-medium text-ink-500">OH visitors</p>
+        </div>
+      </div>
+
+      <Progress
+        className="mt-3"
+        value={launchPct}
+        size="sm"
+        barClassName={
+          launchPct >= 70
+            ? "from-emerald-500 to-emerald-600"
+            : launchPct >= 35
+              ? "from-itera-500 to-itera-600"
+              : "from-amber-500 to-amber-600"
+        }
+      />
+
+      <div className="mt-3 rounded-xl border border-itera-100 bg-itera-50/50 px-3 py-2">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-itera-700">Up next</p>
+        {upcomingHouse ? (
+          <p className="mt-0.5 text-[14px] font-semibold text-ink-950">
+            Open house · {format(parseISO(upcomingHouse.date), "EEE, MMM d")}
+            <span className="text-ink-500">
+              {" "}
+              · {upcomingHouse.startTime}–{upcomingHouse.endTime}
+            </span>
+          </p>
+        ) : nextMilestone?.iso ? (
+          <p className="mt-0.5 text-[14px] font-semibold text-ink-950">
+            {nextMilestone.label} · {format(parseISO(nextMilestone.iso), "EEE, MMM d")}
+            {nextMilestone.detail ? <span className="text-ink-500"> · {nextMilestone.detail}</span> : null}
+          </p>
+        ) : (
+          <p className="mt-0.5 text-[14px] font-medium text-ink-500">Nothing scheduled yet.</p>
+        )}
+      </div>
+
+      {filled.length > 0 ? (
+        <dl className="mt-3 divide-y divide-hairline rounded-xl border border-hairline bg-canvas/40 px-3">
+          {filled.map((r) => (
+            <div key={r.id} className="flex items-start justify-between gap-3 py-2">
+              <dt className="min-w-0">
+                <span className="block text-[13px] text-ink-500">{r.label}</span>
+                {r.note ? (
+                  <span className="mt-0.5 block text-[12px] leading-snug text-ink-600">{r.note}</span>
+                ) : null}
+              </dt>
+              <dd className="shrink-0 text-right text-[13px] font-semibold text-ink-900">
+                {r.iso ? format(parseISO(r.iso), "MMM d, yyyy") : "—"}
+                {r.detail ? <span className="text-ink-500"> · {r.detail}</span> : null}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <p className="mt-3 rounded-xl border border-dashed border-hairline bg-canvas/40 px-3 py-2.5 text-[13px] text-ink-500">
+          No marketing dates yet. Add them on the Marketing tab.
+        </p>
+      )}
+
+      {pastHouse && !upcomingHouse && (
+        <p className="mt-2 text-[12.5px] text-ink-500">
+          Last open house {format(parseISO(pastHouse.date), "MMM d")} · {pastHouse.visitors} visitors
+        </p>
+      )}
+
+      {m.campaignNotes.trim() && (
+        <div className="mt-2.5 rounded-xl border border-hairline bg-surface px-3 py-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-500">Campaign notes</p>
+          <p className="mt-1 line-clamp-3 text-[13px] leading-relaxed text-ink-700">{m.campaignNotes}</p>
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+/* ── 6. Key dates ───────────────────────────────────────────────────── */
+
+function KeyDatesCard({ file, className }: { file: TransactionFile; className?: string }) {
   const setKeyDates = useTransactionsStore((s) => s.setKeyDates);
   const [editing, setEditing] = useState(false);
   const [closing, setClosing] = useState(file.closingDate ? format(parseISO(file.closingDate), "yyyy-MM-dd") : "");
@@ -545,6 +713,7 @@ function KeyDatesCard({ file }: { file: TransactionFile }) {
     <Panel
       title="Key dates"
       icon={CalendarDays}
+      className={className}
       action={
         <Button size="xs" variant="secondary" onClick={() => setEditing(true)}>
           Edit

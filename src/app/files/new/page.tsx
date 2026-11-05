@@ -33,7 +33,10 @@ import {
 } from "@/lib/checklist/engine";
 import { SequenceOverride } from "@/components/intake/sequence-override";
 import type { ReferralProfile } from "@/lib/referral/form";
-import type { IntakeAnswers, TransactionSide } from "@/types";
+import { GuidelineListEditor } from "@/components/workspace/listing-guidelines";
+import { VisitorAlertsEditor } from "@/components/workspace/visitor-alerts";
+import { alertsFromShowings, emptyVisitorAlerts, visitorAlertLines } from "@/lib/work/visitor-alerts";
+import type { IntakeAnswers, ListingGuideline, TransactionSide, VisitorAlertFields } from "@/types";
 import { cn } from "@/lib/utils/cn";
 import { emailError, formatPhone, formatPhoneTyping, phoneError, PHONE_PLACEHOLDER } from "@/lib/utils/contact";
 
@@ -77,6 +80,8 @@ function NewFileContent() {
     null,
   );
   const [customNote, setCustomNote] = useState("");
+  const [guidelines, setGuidelines] = useState<ListingGuideline[]>([]);
+  const [alerts, setAlerts] = useState<VisitorAlertFields>(emptyVisitorAlerts);
   const [form, setForm] = useState<Partial<IntakeAnswers>>({
     side: "listing",
     isReferral: false,
@@ -94,7 +99,10 @@ function NewFileContent() {
       clientName: existing.clientName,
       phone: existing.phone,
       email: existing.email || undefined,
+      side: existing.side,
     }));
+    setGuidelines(existing.showings?.guidelines ?? []);
+    setAlerts(alertsFromShowings(existing.showings));
   }, [completingId, files]);
 
   const update = (field: keyof IntakeAnswers, value: unknown) =>
@@ -231,12 +239,14 @@ function NewFileContent() {
   ]);
 
   const finishBuild = () => {
+    const visitRules = answers.side === "listing" ? guidelines : undefined;
+    const visitAlerts = answers.side === "listing" ? alerts : undefined;
     if (completingId) {
-      completeIntake(completingId, answers, sequence);
+      completeIntake(completingId, answers, sequence, visitRules, visitAlerts);
       afterCreate(completingId);
       return;
     }
-    afterCreate(createFile(answers, sequence));
+    afterCreate(createFile(answers, sequence, visitRules, visitAlerts));
   };
 
   const handleSubmit = () => setBuilding(true);
@@ -577,6 +587,27 @@ function NewFileContent() {
                 placeholder="linkedin.com/in/…"
               />
 
+              {form.side === "listing" && (
+                <div className="space-y-4">
+                  <VisitorAlertsEditor
+                    value={alerts}
+                    onChange={setAlerts}
+                    idPrefix="new-listing-alert"
+                  />
+                  <div className="rounded-2xl border border-hairline bg-canvas/70 p-4">
+                    <p className="text-[14px] font-semibold text-ink-900">Visit guidelines</p>
+                    <p className="mt-1 mb-3 text-[14px] leading-relaxed text-ink-500">
+                      Ordinary rules other agents should follow. You can add more later on the listing.
+                    </p>
+                    <GuidelineListEditor
+                      guidelines={guidelines}
+                      onChange={setGuidelines}
+                      inputId="new-listing-guideline"
+                    />
+                  </div>
+                </div>
+              )}
+
               <Input
                 id="petNames"
                 label="Pet names"
@@ -654,6 +685,18 @@ function NewFileContent() {
                 )}
                 {answers.builtBefore1978 && (
                   <Summary label="Built" value="Before 1978" />
+                )}
+                {answers.side === "listing" && visitorAlertLines(alerts).length > 0 && (
+                  <Summary
+                    label="Before the visit"
+                    value={visitorAlertLines(alerts).map((line) => line.title).join(" · ")}
+                  />
+                )}
+                {answers.side === "listing" && guidelines.length > 0 && (
+                  <Summary
+                    label="Visit guidelines"
+                    value={guidelines.map((rule) => rule.text).join(" · ")}
+                  />
                 )}
               </dl>
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { DeadlineMark } from "@/components/dashboard/status-legend";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/misc";
 import { getFileProgress, getMostUrgentTask } from "@/lib/selectors/file-metrics";
@@ -60,6 +61,7 @@ export function TableView({ files }: { files: TransactionFile[] }) {
                   <td className="max-w-[280px] px-5 py-3.5">
                     <p className="truncate font-semibold text-ink-950">{file.propertyAddress || file.clientName}</p>
                     <p className="truncate text-[13px] text-ink-500">{file.clientName}</p>
+                    <DeadlineMark file={file} className="mt-1" />
                   </td>
                   <td className="px-4 py-3.5">
                     <StatusBadge status={file.status} size="sm" />

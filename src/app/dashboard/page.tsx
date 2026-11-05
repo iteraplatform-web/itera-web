@@ -18,6 +18,7 @@ import { AuthGuard } from "@/components/layout/auth-guard";
 import { AppShell } from "@/components/layout/app-shell";
 import { HomeSummary } from "@/components/dashboard/home-summary";
 import { FileCard } from "@/components/dashboard/file-card";
+import { StatusLegend } from "@/components/dashboard/status-legend";
 import { TableView } from "@/components/dashboard/table-view";
 import { KanbanBoard } from "@/components/dashboard/kanban-board";
 import { CalendarView } from "@/components/dashboard/calendar-view";
@@ -147,6 +148,9 @@ function DashboardContent() {
                     ]}
                   />
                 </div>
+              </div>
+              <div className="mt-3 border-t border-hairline pt-3">
+                <StatusLegend />
               </div>
             </div>
 

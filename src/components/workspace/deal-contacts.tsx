@@ -99,7 +99,7 @@ export function DealContactsCard({ file, embedded = false }: { file: Transaction
 
   return (
     <section className={embedded ? "border-t border-hairline" : "overflow-hidden rounded-2xl border border-hairline bg-surface shadow-sm"}>
-      <header className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-3">
+      <header className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-2.5">
         <h2 className="flex items-center gap-2 text-[16px] font-semibold text-ink-950">
           <Users className="h-4.5 w-4.5 text-ink-500" />
           People on this deal
@@ -108,7 +108,7 @@ export function DealContactsCard({ file, embedded = false }: { file: Transaction
           Edit contacts
         </Button>
       </header>
-      <div className="grid gap-2.5 p-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-2.5 p-3.5 sm:grid-cols-2 sm:p-4 xl:grid-cols-4">
         <ClientCard file={file} />
         {KEYS.map((key) => (
           <PersonCard key={key} role={roleFor(file, key).role} contact={contacts[key]} />

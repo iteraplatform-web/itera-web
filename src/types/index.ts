@@ -177,6 +177,10 @@ export interface SentEmail {
   subject: string;
   sentAt: string;
   sentBy: string;
+  /** Who the demo email is addressed to. Real Gmail is not used. */
+  to?: string;
+  /** Full text kept on the file so the demo can open the message again. */
+  body?: string;
 }
 
 export interface Message {
@@ -394,6 +398,12 @@ export type ShowingFeedbackSentiment = "hot" | "warm" | "cool" | "pass";
 /** Missing means the visit is still booked. Cancelled visits stay on the folder. */
 export type ShowingVisitStatus = "booked" | "cancelled";
 
+/** One rule the listing agent wants every visiting agent to follow. */
+export interface ListingGuideline {
+  id: string;
+  text: string;
+}
+
 export interface ShowingAppointment {
   id: string;
   scheduledAt: string;
@@ -403,6 +413,10 @@ export interface ShowingAppointment {
   /** Buying side: address of the property toured. */
   propertyAddress?: string;
   status?: ShowingVisitStatus;
+  /** Email typed for the visiting agent. The demo does not send it through Gmail. */
+  visitorEmail?: string;
+  /** Id of the demo email stored on the file for this visit. */
+  noticeEmailId?: string;
 }
 
 export interface ShowingsWork {
@@ -411,9 +425,25 @@ export interface ShowingsWork {
   noticeHours: number;
   petInstructions: string;
   alarmInstructions: string;
+  /** Security cameras are installed and recording. */
+  camerasOn: boolean;
+  /** Extra detail about where the cameras are. */
+  cameraNote: string;
+  /** A dog, cat, or other animal is in the house during visits. */
+  petsOnSite: boolean;
+  /** A must-see note that should not sit in the quieter guidelines list. */
+  importantNote: string;
+  /** Rules shown to anyone booking or attending a visit on this listing. */
+  guidelines: ListingGuideline[];
   appointments: ShowingAppointment[];
   updatedAt?: string;
 }
+
+/** The loud visitor warnings a listing agent fills in. */
+export type VisitorAlertFields = Pick<
+  ShowingsWork,
+  "camerasOn" | "cameraNote" | "petsOnSite" | "petInstructions" | "importantNote"
+>;
 
 export interface OpenHouse {
   id: string;
@@ -422,12 +452,73 @@ export interface OpenHouse {
   endTime: string;
   visitors: number;
   notes?: string;
+  /** The open-house date is entered on the MLS. */
+  onMls: boolean;
+  /** A reminder went out on social before the event. */
+  socialReminder: boolean;
+  /** Nearby neighbors were invited. */
+  neighborsInvited: boolean;
+  /** Guests got a thank-you after the event. */
+  thankYouSent: boolean;
+  /** The seller was told how many people came. */
+  sellerTold: boolean;
+}
+
+/** Planned or completed dates for the listing campaign. */
+export interface MarketingDates {
+  /** Sneak peek / coming-soon went out. */
+  comingSoonAt?: string;
+  /** Listing went live on the MLS. */
+  goLiveAt?: string;
+  /** Broker / agent tour of the home. */
+  brokerTourAt?: string;
+  /** Last weekly update sent to the seller. */
+  sellerUpdateAt?: string;
+  /** Fresh social or email refresh after launch week. */
+  refreshPostAt?: string;
+  /** Price conversation with the seller. */
+  priceTalkAt?: string;
+}
+
+/** A campaign day the agent added, on top of the built-in ones. */
+export interface CustomMarketingDate {
+  id: string;
+  label: string;
+  /** What happens on this day. */
+  note: string;
+  date?: string;
+  /** When true and a date is set, this day shows on the Overview page. */
+  showOnOverview: boolean;
 }
 
 export interface MarketingWork {
   syndicatedPortals: string[];
   socialPosted: boolean;
   emailAnnouncementSent: boolean;
+  /** A just-listed note went to other agents. */
+  agentEmailSent: boolean;
+  /** A sneak peek went out before the listing was live. */
+  comingSoon: boolean;
+  /** The agent recorded that the MLS entry is live. */
+  mlsLive: boolean;
+  yardSign: boolean;
+  flyer: boolean;
+  videoTour: boolean;
+  /** A small paid boost. Optional — it does not block Ready. */
+  adBoost: boolean;
+  /** Weekly note to the seller about showings and feedback. */
+  sellerUpdate: boolean;
+  /** A fresh post after the first week. */
+  refreshPost: boolean;
+  /** A price conversation when showings are quiet. */
+  priceTalk: boolean;
+  dates: MarketingDates;
+  /** What happens on each built-in campaign day. */
+  dateNotes: Partial<Record<keyof MarketingDates, string>>;
+  /** Built-in days the agent chose to keep off the Overview page. */
+  hiddenOverviewDates: (keyof MarketingDates)[];
+  /** Extra days the agent added. */
+  customDates: CustomMarketingDate[];
   openHouses: OpenHouse[];
   campaignNotes: string;
   updatedAt?: string;
@@ -624,6 +715,9 @@ export interface UrgentItem {
   taskTitle: string;
   daysRemaining: number;
   isOverdue: boolean;
+  /** Workspace tab where this task is actually done. */
+  section: WorkspaceSection;
+  focus?: string;
 }
 
 /**

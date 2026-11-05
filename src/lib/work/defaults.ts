@@ -1,4 +1,5 @@
 import { v4 as uuid } from "uuid";
+import { alertsFromShowings } from "@/lib/work/visitor-alerts";
 import type {
   AgreementRecord,
   BuyerSearchWork,
@@ -9,6 +10,7 @@ import type {
   FolderContext,
   IntakeAnswers,
   ListingDetailsWork,
+  MarketingDates,
   MarketingWork,
   MediaWork,
   MilestoneRecord,
@@ -94,8 +96,17 @@ export function emptyShowings(): ShowingsWork {
     noticeHours: 2,
     petInstructions: "",
     alarmInstructions: "",
+    camerasOn: false,
+    cameraNote: "",
+    petsOnSite: false,
+    importantNote: "",
+    guidelines: [],
     appointments: [],
   };
+}
+
+export function emptyMarketingDates(): MarketingDates {
+  return {};
 }
 
 export function emptyMarketing(): MarketingWork {
@@ -103,8 +114,75 @@ export function emptyMarketing(): MarketingWork {
     syndicatedPortals: [],
     socialPosted: false,
     emailAnnouncementSent: false,
+    agentEmailSent: false,
+    comingSoon: false,
+    mlsLive: false,
+    yardSign: false,
+    flyer: false,
+    videoTour: false,
+    adBoost: false,
+    sellerUpdate: false,
+    refreshPost: false,
+    priceTalk: false,
+    dates: emptyMarketingDates(),
+    dateNotes: {},
+    hiddenOverviewDates: [],
+    customDates: [],
     openHouses: [],
     campaignNotes: "",
+  };
+}
+
+const MARKETING_DATE_KEYS: (keyof MarketingDates)[] = [
+  "comingSoonAt",
+  "goLiveAt",
+  "brokerTourAt",
+  "sellerUpdateAt",
+  "refreshPostAt",
+  "priceTalkAt",
+];
+
+/** Fill marketing fields that older saved files do not have yet. */
+export function normalizeMarketing(m?: Partial<MarketingWork> | null): MarketingWork {
+  const base = emptyMarketing();
+  if (!m) return base;
+  return {
+    ...base,
+    ...m,
+    syndicatedPortals: m.syndicatedPortals ?? [],
+    socialPosted: m.socialPosted ?? false,
+    emailAnnouncementSent: m.emailAnnouncementSent ?? false,
+    agentEmailSent: m.agentEmailSent ?? false,
+    comingSoon: m.comingSoon ?? false,
+    mlsLive: m.mlsLive ?? false,
+    yardSign: m.yardSign ?? false,
+    flyer: m.flyer ?? false,
+    videoTour: m.videoTour ?? false,
+    adBoost: m.adBoost ?? false,
+    sellerUpdate: m.sellerUpdate ?? false,
+    refreshPost: m.refreshPost ?? false,
+    priceTalk: m.priceTalk ?? false,
+    dates: { ...base.dates, ...(m.dates ?? {}) },
+    dateNotes: { ...(m.dateNotes ?? {}) },
+    hiddenOverviewDates: (m.hiddenOverviewDates ?? []).filter((key) =>
+      MARKETING_DATE_KEYS.includes(key)
+    ),
+    customDates: (m.customDates ?? []).map((d) => ({
+      id: d.id || uuid(),
+      label: d.label ?? "",
+      note: d.note ?? "",
+      date: d.date,
+      showOnOverview: d.showOnOverview ?? true,
+    })),
+    campaignNotes: m.campaignNotes ?? "",
+    openHouses: (m.openHouses ?? []).map((h) => ({
+      ...h,
+      onMls: h.onMls ?? false,
+      socialReminder: h.socialReminder ?? false,
+      neighborsInvited: h.neighborsInvited ?? false,
+      thankYouSent: h.thankYouSent ?? false,
+      sellerTold: h.sellerTold ?? false,
+    })),
   };
 }
 
@@ -236,6 +314,20 @@ export function createDefaultWorkFields(answers: IntakeAnswers): Pick<
   };
 }
 
+/** Fills camera, pet, and special-note fields on older saved files. */
+function normalizeShowings(showings: ShowingsWork, raw: Partial<ShowingsWork>): ShowingsWork {
+  return {
+    ...showings,
+    ...alertsFromShowings({
+      ...showings,
+      camerasOn: "camerasOn" in raw ? raw.camerasOn : undefined,
+      petsOnSite: "petsOnSite" in raw ? raw.petsOnSite : undefined,
+      cameraNote: "cameraNote" in raw ? raw.cameraNote : undefined,
+      importantNote: "importantNote" in raw ? raw.importantNote : undefined,
+    }),
+  };
+}
+
 /** Backfill work fields for files persisted before this feature shipped. */
 export function ensureWorkFields(file: TransactionFile): TransactionFile {
   const answers: IntakeAnswers = {
@@ -276,8 +368,18 @@ export function ensureWorkFields(file: TransactionFile): TransactionFile {
           shots: file.media.shots?.length ? file.media.shots : defaults.media.shots,
         }
       : defaults.media,
-    showings: file.showings ?? defaults.showings,
-    marketing: file.marketing ?? defaults.marketing,
+    showings: file.showings
+      ?         normalizeShowings(
+          {
+            ...defaults.showings,
+            ...file.showings,
+            guidelines: file.showings.guidelines ?? [],
+            appointments: file.showings.appointments ?? [],
+          },
+          file.showings
+        )
+      : defaults.showings,
+    marketing: normalizeMarketing(file.marketing),
     buyerSearch: file.buyerSearch ?? defaults.buyerSearch,
     milestones: file.milestones?.length ? file.milestones : defaults.milestones,
     agreements: file.agreements?.length ? file.agreements : defaults.agreements,

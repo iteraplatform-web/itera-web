@@ -77,6 +77,8 @@ export function getMostUrgentItem(files: TransactionFile[]): UrgentItem | null {
           taskTitle: t.title,
           daysRemaining: days,
           isOverdue: overdue,
+          section: t.workTarget?.section ?? "checklist",
+          focus: t.workTarget?.focus,
         };
       }
     });

@@ -14,6 +14,7 @@ import {
   Home,
   ListChecks,
   LogOut,
+  Users,
   Menu,
   Plus,
   Settings,
@@ -42,6 +43,7 @@ export interface Crumb {
 
 const MAIN_NAV = [
   { href: "/dashboard", label: "Home", icon: Home, match: (p: string) => p === "/dashboard" },
+  { href: "/contacts", label: "Contacts", icon: Users, match: (p: string) => p.startsWith("/contacts") },
   { href: "/tasks", label: "Tasks", icon: ListChecks, match: (p: string) => p.startsWith("/tasks") },
   { href: "/visits", label: "Visits", icon: CalendarDays, match: (p: string) => p.startsWith("/visits") },
   { href: "/import", label: "Import Spreadsheet", icon: FileSpreadsheet, match: (p: string) => p.startsWith("/import") },

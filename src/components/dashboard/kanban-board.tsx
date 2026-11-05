@@ -22,6 +22,7 @@ import { useNotificationsStore } from "@/stores/notifications-store";
 import { STATUS_THEME, KANBAN_COLUMNS } from "@/lib/utils/status-theme";
 import { daysRemaining, isOverdue } from "@/lib/utils/dates";
 import { getFileProgress, getMostUrgentTask } from "@/lib/selectors/file-metrics";
+import { DeadlineMark } from "@/components/dashboard/status-legend";
 import { Badge } from "@/components/ui/badge";
 import type { TransactionFile, TransactionStatus } from "@/types";
 import { cn } from "@/lib/utils/cn";
@@ -183,6 +184,7 @@ function KanbanCard({ file, isOverlay }: { file: TransactionFile; isOverlay?: bo
             {file.propertyAddress || file.clientName}
           </p>
           <p className="mt-0.5 truncate text-[14px] text-ink-600">{file.clientName}</p>
+          <DeadlineMark file={file} className="mt-1.5" />
           {file.listPrice > 0 && (
             <p className="tnum mt-2 text-[15px] font-bold text-ink-950">${file.listPrice.toLocaleString()}</p>
           )}

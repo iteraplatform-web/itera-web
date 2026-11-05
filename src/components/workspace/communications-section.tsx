@@ -12,7 +12,8 @@ import { SectionLabel } from "@/components/ui/card";
 import { cn } from "@/lib/utils/cn";
 import { useFocusTarget } from "@/hooks/use-focus-target";
 import { ReferralFormCard } from "@/components/workspace/referral-form-card";
-import type { EmailTemplate, TransactionFile } from "@/types";
+import { VisitNoticeModal } from "@/components/workspace/visit-notice-modal";
+import type { EmailTemplate, SentEmail, TransactionFile } from "@/types";
 
 export function CommunicationsSection({ file, focus }: { file: TransactionFile; focus?: string }) {
   const sendEmail = useTransactionsStore((s) => s.sendEmail);
@@ -21,6 +22,7 @@ export function CommunicationsSection({ file, focus }: { file: TransactionFile; 
 
   const [message, setMessage] = useState("");
   // Arriving from a checklist button opens that email ready to review and send.
+  const [opened, setOpened] = useState<SentEmail | null>(null);
   const [preview, setPreview] = useState<EmailTemplate | null>(
     () => EMAIL_TEMPLATES.find((t) => t.id === focus) ?? null
   );
@@ -105,9 +107,15 @@ export function CommunicationsSection({ file, focus }: { file: TransactionFile; 
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[14px] font-medium text-ink-900">{email.subject}</p>
                   <p className="text-[13px] text-ink-500">
+                    {email.to ? `${email.to} · ` : ""}
                     {email.sentBy} · {formatDate(email.sentAt, "MMM d, yyyy 'at' h:mm a")}
                   </p>
                 </div>
+                {email.body && (
+                  <Button variant="ghost" size="xs" onClick={() => setOpened(email)}>
+                    Open
+                  </Button>
+                )}
               </li>
             ))}
           </ul>
@@ -186,6 +194,8 @@ export function CommunicationsSection({ file, focus }: { file: TransactionFile; 
       </section>
 
       {/* ── Preview before sending ────────────────────────────── */}
+      <VisitNoticeModal email={opened} onClose={() => setOpened(null)} />
+
       <Modal
         open={preview !== null}
         onClose={() => setPreview(null)}

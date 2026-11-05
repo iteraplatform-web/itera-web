@@ -29,8 +29,9 @@ import {
   type SavedSequence,
   type TemplateContext,
 } from "@/lib/checklist/engine";
-import { SEED_TRANSACTIONS } from "@/lib/seed/data";
+import { fillBlankSeedProfile, SEED_TRANSACTIONS } from "@/lib/seed/data";
 import { emptyDealContacts, emptyFolderContext, ensureWorkFields } from "@/lib/work/defaults";
+import { attachVisitNotice, copyEmail, refreshVisitNotice } from "@/lib/work/visit-notice";
 import { toast } from "@/stores/toast-store";
 import { useNotificationsStore } from "@/stores/notifications-store";
 import { STATUS_THEME } from "@/lib/utils/status-theme";
@@ -60,6 +61,9 @@ import type {
   DashboardView,
   IntakeAnswers,
   ListingDetailsWork,
+  ListingGuideline,
+  VisitorAlertFields,
+  SentEmail,
   MarketingWork,
   MediaWork,
   MilestoneRecord,
@@ -103,7 +107,12 @@ interface TransactionsState {
   getPortfolioStats: () => PortfolioStats;
   getMostUrgentItem: () => UrgentItem | null;
 
-  createFile: (answers: IntakeAnswers, sequence?: SavedSequence) => string;
+  createFile: (
+    answers: IntakeAnswers,
+    sequence?: SavedSequence,
+    guidelines?: ListingGuideline[],
+    alerts?: VisitorAlertFields
+  ) => string;
   createQuickLead: (name: string, phone: string) => string;
   updateFileStatus: (
     fileId: string,
@@ -160,7 +169,13 @@ interface TransactionsState {
   setPortalVisibility: (fileId: string, updates: Partial<PortalVisibility>) => void;
   recordClientSignIn: (fileId: string) => void;
   addDocument: (fileId: string, name: string, category: TransactionFile["documents"][number]["category"]) => void;
-  completeIntake: (fileId: string, answers: IntakeAnswers, sequence?: SavedSequence) => void;
+  completeIntake: (
+    fileId: string,
+    answers: IntakeAnswers,
+    sequence?: SavedSequence,
+    guidelines?: ListingGuideline[],
+    alerts?: VisitorAlertFields
+  ) => void;
 
   updateClientProfile: (fileId: string, updates: Partial<ClientProfileWork>, actor?: string) => void;
   updateDealContacts: (fileId: string, contacts: DealContacts, actor?: string) => void;
@@ -169,7 +184,9 @@ interface TransactionsState {
   updateListingDetails: (fileId: string, updates: Partial<ListingDetailsWork>, actor?: string) => void;
   updatePropertyPrep: (fileId: string, updates: Partial<PropertyPrepWork>, actor?: string) => void;
   updateMedia: (fileId: string, updates: Partial<MediaWork>, actor?: string) => void;
-  updateShowings: (fileId: string, updates: Partial<ShowingsWork>, actor?: string) => void;
+  updateShowings: (fileId: string, updates: Partial<ShowingsWork>, actor?: string) => SentEmail[];
+  /** Saves a demo email for one visit. Does not send anything through Gmail. */
+  sendVisitNotice: (fileId: string, appointmentId: string, actor?: string) => SentEmail | null;
   updateMarketing: (fileId: string, updates: Partial<MarketingWork>, actor?: string) => void;
   updateBuyerSearch: (fileId: string, updates: Partial<BuyerSearchWork>, actor?: string) => void;
   updateMilestone: (fileId: string, milestoneId: string, updates: Partial<MilestoneRecord>, actor?: string) => void;
@@ -407,7 +424,7 @@ export const useTransactionsStore = create<TransactionsState>()(
           });
         } else {
           set((s) => {
-            s.files = s.files.map(ensureWorkFields);
+            s.files = s.files.map((file) => fillBlankSeedProfile(ensureWorkFields(file)));
           });
         }
         get().applyExpiredListings({ notify: false });
@@ -430,10 +447,16 @@ export const useTransactionsStore = create<TransactionsState>()(
 
       getMostUrgentItem: () => getMostUrgentItem(get().files),
 
-      createFile: (answers, sequence) => {
+      createFile: (answers, sequence, guidelines, alerts) => {
         const file = createTransactionFromIntake(answers, sequence
           ? { checklist: sequence.checklist, checklistOverridden: sequence.overridden || undefined }
           : undefined);
+        if (answers.side === "listing" && guidelines?.length) {
+          file.showings.guidelines = guidelines;
+        }
+        if (answers.side === "listing" && alerts) {
+          Object.assign(file.showings, alerts);
+        }
         if (sequence?.overridden) {
           file.activity.unshift({
             id: uuid(),
@@ -1375,7 +1398,7 @@ export const useTransactionsStore = create<TransactionsState>()(
        * documents from the completed answers while keeping the file's id,
        * notes, and activity history intact.
        */
-      completeIntake: (fileId, answers, sequence) => {
+      completeIntake: (fileId, answers, sequence, guidelines, alerts) => {
         const existing = get().files.find((f) => f.id === fileId);
         if (!existing) return;
 
@@ -1403,6 +1426,10 @@ export const useTransactionsStore = create<TransactionsState>()(
             ? { checklist: sequence.checklist, checklistOverridden: sequence.overridden || undefined }
             : {}),
         });
+
+        if (answers.side === "listing" && (guidelines || alerts)) {
+          rebuilt.showings = { ...rebuilt.showings, ...(guidelines ? { guidelines } : {}), ...alerts };
+        }
 
         set((s) => {
           const idx = s.files.findIndex((f) => f.id === fileId);
@@ -1522,11 +1549,13 @@ export const useTransactionsStore = create<TransactionsState>()(
         let title = "Showings saved";
         let message = "Access instructions are on the file";
         let saved = false;
+        const created: SentEmail[] = [];
         set((s) => {
           const f = s.files.find((x) => x.id === fileId);
           if (!f) return;
           saved = true;
           const prev = f.showings.appointments;
+          const prevIds = new Set(prev.map((a) => a.id));
           const next = updates.appointments;
           let activity = "Showing instructions updated";
           if (next) {
@@ -1545,11 +1574,62 @@ export const useTransactionsStore = create<TransactionsState>()(
               title = "Visit updated";
               message = "Time or feedback is saved on the house folder.";
             }
+          } else if (
+            updates.guidelines ||
+            updates.camerasOn !== undefined ||
+            updates.petsOnSite !== undefined ||
+            updates.importantNote !== undefined
+          ) {
+            activity = "Visit rules updated";
+            title = "Visit rules saved";
+            message = "Cameras, pets, and guidelines show on the visit for the other agent.";
           }
           Object.assign(f.showings, updates, { updatedAt: new Date().toISOString() });
+          if (f.side === "listing" && next) {
+            for (const appt of f.showings.appointments) {
+              if (prevIds.has(appt.id) || appt.noticeEmailId) continue;
+              const email = attachVisitNotice(f, appt, actor);
+              if (email) created.push(copyEmail(email));
+            }
+            if (created.length > 0) {
+              title = "Demo email ready";
+              message = `Saved on this file for ${created[0].to}. Nothing was sent through Gmail.`;
+              activity = `Visit added — guidelines email saved for ${created[0].to}`;
+            }
+          }
           pushWorkActivity(f, "showing_logged", activity, actor);
         });
         if (saved) toast.success(title, message);
+        return created;
+      },
+
+      sendVisitNotice: (fileId, appointmentId, actor = "Demo Agent") => {
+        let email: SentEmail | null = null;
+        let created = false;
+        set((s) => {
+          const f = s.files.find((x) => x.id === fileId);
+          if (!f || f.side !== "listing") return;
+          const appt = f.showings.appointments.find((a) => a.id === appointmentId);
+          if (!appt) return;
+          const already = Boolean(appt.noticeEmailId);
+          if (already) refreshVisitNotice(f, appt, actor);
+          const notice = attachVisitNotice(f, appt, actor);
+          if (!notice) return;
+          email = copyEmail(notice);
+          created = !already;
+          if (created) {
+            pushWorkActivity(
+              f,
+              "message_sent",
+              `Visit guidelines email saved for ${appt.agentOrBuyer}`,
+              actor
+            );
+          }
+        });
+        if (created) {
+          toast.info("Demo email ready", "It is saved on this file. Nothing was sent through Gmail.");
+        }
+        return email;
       },
 
       updateMarketing: (fileId, updates, actor = "Demo Agent") => {

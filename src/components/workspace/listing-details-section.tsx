@@ -12,8 +12,11 @@ import {
   WorkInstructions,
   WorkStatusChip,
 } from "@/components/workspace/work-ui";
+import { GuidelineListEditor } from "@/components/workspace/listing-guidelines";
+import { VisitorAlertsEditor } from "@/components/workspace/visitor-alerts";
+import { alertsFromShowings } from "@/lib/work/visitor-alerts";
 import { listingReadiness } from "@/lib/work/readiness";
-import type { ListingPublishStatus, TransactionFile } from "@/types";
+import type { ListingGuideline, ListingPublishStatus, TransactionFile, VisitorAlertFields } from "@/types";
 
 export function ListingDetailsSection({
   file,
@@ -23,8 +26,11 @@ export function ListingDetailsSection({
   full?: boolean;
 }) {
   const updateListingDetails = useTransactionsStore((s) => s.updateListingDetails);
+  const updateShowings = useTransactionsStore((s) => s.updateShowings);
   const toggleTask = useTransactionsStore((s) => s.toggleTask);
   const [draft, setDraft] = useState(file.listingDetails);
+  const [guidelines, setGuidelines] = useState<ListingGuideline[]>(file.showings.guidelines ?? []);
+  const [alerts, setAlerts] = useState<VisitorAlertFields>(() => alertsFromShowings(file.showings));
   const readiness = listingReadiness(draft);
   const task = file.checklist.find((t) => t.id === "mls_entry");
 
@@ -134,6 +140,22 @@ export function ListingDetailsSection({
         <option value="ready">Ready to publish</option>
         <option value="published_external">Published externally (MLS)</option>
       </Select>
+
+      <div className="space-y-4 border-t border-hairline pt-5">
+        <VisitorAlertsEditor value={alerts} onChange={setAlerts} idPrefix="listing-alert" />
+        <div className="space-y-3">
+          <p className="text-[14px] font-semibold text-ink-900">Visit guidelines</p>
+          <p className="text-[14px] leading-relaxed text-ink-500">
+            Ordinary rules for other agents. For example: ring the doorbell, two people max, no night visits.
+          </p>
+          <GuidelineListEditor guidelines={guidelines} onChange={setGuidelines} inputId="listing-guideline" />
+        </div>
+        <div className="flex justify-end">
+          <Button variant="secondary" onClick={() => updateShowings(file.id, { guidelines, ...alerts })}>
+            Save visit rules
+          </Button>
+        </div>
+      </div>
 
       <div className="flex justify-end">
         <Button onClick={() => updateListingDetails(file.id, draft)}>Save listing sheet</Button>

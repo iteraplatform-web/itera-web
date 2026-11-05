@@ -5,13 +5,14 @@ import { BlobImage } from "@/components/ui/blob-image";
 import { PropertyPlaceholder } from "@/components/ui/property-placeholder";
 import { samplePhotoFor } from "@/lib/work/sample-photos";
 import { getMostUrgentTask } from "@/lib/selectors/file-metrics";
+import { DeadlineDot, DeadlineMark } from "@/components/dashboard/status-legend";
 import { daysRemaining, isOverdue } from "@/lib/utils/dates";
 import { cn } from "@/lib/utils/cn";
 import { STATUS_LABELS, type TransactionFile } from "@/types";
 
 /**
- * Photo, address, price, and what's next — mostly ink on white so the eye
- * lands on the facts. Color only when a deadline is late or due today.
+ * Photo, address, price, and what's next. The coloured dot is the closing
+ * date or the listing end date: late, urgent, normal, or not set.
  */
 export function FileCard({ file }: { file: TransactionFile }) {
   const next = getMostUrgentTask(file);
@@ -22,7 +23,7 @@ export function FileCard({ file }: { file: TransactionFile }) {
 
   const dueLabel =
     days === null ? null : late ? `${Math.abs(days)}d late` : days === 0 ? "Today" : `${days}d`;
-  // Color only when a deadline is pressing — never for status itself.
+  // The next-task line turns red or amber only when that task is pressing.
   const dueTone =
     days === null
       ? null
@@ -35,9 +36,9 @@ export function FileCard({ file }: { file: TransactionFile }) {
   return (
     <Link
       href={`/files/${file.id}`}
-      className="group flex flex-col overflow-hidden rounded-2xl border border-hairline bg-surface shadow-sm transition-shadow duration-200 hover:shadow-md"
+      className="group flex flex-col rounded-2xl border border-hairline bg-surface shadow-sm transition-shadow duration-200 hover:shadow-md"
     >
-      <div className="relative aspect-[16/10] overflow-hidden bg-ink-100">
+      <div className="relative aspect-[16/10] overflow-hidden rounded-t-2xl bg-ink-100">
         {cover ? (
           <BlobImage
             blobKey={cover.thumbBlobId}
@@ -60,6 +61,7 @@ export function FileCard({ file }: { file: TransactionFile }) {
         <span className="absolute left-3 top-3 rounded-full bg-white/95 px-2.5 py-1 text-[12px] font-medium text-ink-800 shadow-sm backdrop-blur">
           {STATUS_LABELS[file.status]}
         </span>
+        <DeadlineDot file={file} />
       </div>
 
       <div className="flex flex-1 flex-col p-5">
@@ -71,6 +73,7 @@ export function FileCard({ file }: { file: TransactionFile }) {
           <span className="text-ink-300"> · </span>
           {file.side === "listing" ? "Selling" : "Buying"}
         </p>
+        <DeadlineMark file={file} className="mt-2" />
 
         <div className="mt-4 grid grid-cols-2 gap-4 border-t border-hairline pt-4">
           <div>

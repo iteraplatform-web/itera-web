@@ -243,14 +243,14 @@ const BASE_TASKS: TaskTemplate[] = [
   {
     id: "marketing_launch",
     title: "Launch Marketing Campaign",
-    description: "Syndication, social, and the first open house",
+    description: "The steps that get this listing in front of buyers",
     phase: "marketing",
     dependsOn: ["mls_entry"],
     conditions: { side: "listing" },
     subtasks: [
-      "Confirm syndication to the major portals",
-      "Publish the social and email announcement",
-      "Schedule the first open house",
+      "Confirm the listing is live on the MLS and the major sites",
+      "Send the just-listed email and post it on social",
+      "Schedule the first open house and tell the neighbors",
     ],
     daysFromStart: 13,
     workTarget: { section: "marketing" },

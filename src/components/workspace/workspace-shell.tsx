@@ -47,11 +47,11 @@ export const SECTION_META: Record<WorkspaceSection, { title: string; blurb: stri
   },
   showings: {
     title: "Visits",
-    blurb: "Booked visits for this house. Fetch them when ShowingTime email is connected, or add one by hand.",
+    blurb: "Visit rules for this house, then each booked visit. A demo email keeps the rules with the visiting agent.",
   },
   marketing: {
     title: "Marketing",
-    blurb: "Campaign activity and open houses — or the buyer's search criteria.",
+    blurb: "The steps to market this listing, and how far along you are.",
   },
   documents: {
     title: "Documents",
@@ -161,7 +161,14 @@ export function WorkspaceShell({
           <div className={cn("flex flex-wrap items-start justify-between gap-x-4", section === "overview" ? "mb-3 gap-y-2" : "mb-4 gap-y-3")}>
             <div className="min-w-0 flex-1">
               <h1 className="font-serif text-[32px] font-medium leading-tight tracking-[-0.01em] text-ink-950">{title ?? navFor(section, file).label}</h1>
-              <p className="mt-1 text-[16px] text-ink-600">{blurb ?? meta.blurb}</p>
+              <p className="mt-1 text-[16px] text-ink-600">
+                {blurb ??
+                  (section === "marketing" && file.side === "buying"
+                    ? "Price, areas, and the homes this buyer is considering."
+                    : section === "showings" && file.side === "buying"
+                      ? "Each tour for this buyer. If the house is one of your listings, camera and pet warnings show on the visit."
+                      : meta.blurb)}
+              </p>
             </div>
             {actions && <div className="pt-1">{actions}</div>}
           </div>

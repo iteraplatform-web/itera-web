@@ -1,3 +1,4 @@
+import { BIG_PORTALS, keepGoingPoints, launchPoints, openHouseSteps } from "@/lib/work/marketing-plan";
 import type {
   BuyerSearchWork,
   ClientProfileWork,
@@ -54,6 +55,54 @@ export function mediaReadiness(m: MediaWork): WorkReadiness {
   return "in_progress";
 }
 
+export type LaunchPrepTone = "empty" | "started" | "ready";
+
+export type LaunchPrepCard = {
+  tone: LaunchPrepTone;
+  detail: string;
+};
+
+/** Uploaded pictures only. A checked shot list is a plan, not photos on the file. */
+export function photoLaunchPrep(file: TransactionFile): LaunchPrepCard {
+  const count = file.photos.filter((photo) => Boolean(photo.blobId) || Boolean(photo.name?.trim())).length;
+  const planned = file.media.shots.filter((shot) => shot.selected && shot.label.trim()).length;
+  if (count >= 5) return { tone: "ready", detail: `${count} photos on the file` };
+  if (count > 0) {
+    return {
+      tone: "started",
+      detail: `${count} photo${count === 1 ? "" : "s"} — a listing usually needs a few more`,
+    };
+  }
+  if (planned > 0) return { tone: "started", detail: "Shot list only — no photos uploaded" };
+  return { tone: "empty", detail: "No photos yet" };
+}
+
+/** The public sheet is ready only when the facts, the description, and the publish state are all in. */
+export function wordsLaunchPrep(details: ListingDetailsWork): LaunchPrepCard {
+  const remarks = details.publicRemarks.trim();
+  const hasFacts = details.beds > 0 && details.baths > 0 && details.sqft > 0;
+  const published = details.publishStatus === "ready" || details.publishStatus === "published_external";
+  if (!remarks && !details.beds && !details.baths && !details.sqft) {
+    return { tone: "empty", detail: "Not written yet" };
+  }
+  if (remarks.length <= 20) return { tone: "started", detail: "Public description is too short" };
+  if (!hasFacts) return { tone: "started", detail: "Needs beds, baths, and size" };
+  if (!published) return { tone: "started", detail: "Saved, but still a draft" };
+  return { tone: "ready", detail: "Description and facts are in" };
+}
+
+/** A lockbox and visit hours are the real setup. A single rule by itself is not. */
+export function visitLaunchPrep(showings: ShowingsWork): LaunchPrepCard {
+  const lockbox = showings.lockboxCode.trim();
+  const windows = showings.showingWindows.trim();
+  const hasRule = showings.guidelines.some((rule) => rule.text.trim().length > 0);
+  if (!lockbox && !windows && !hasRule) return { tone: "empty", detail: "Not set" };
+  if (lockbox && windows) return { tone: "ready", detail: "Lockbox and hours are set" };
+  if (!lockbox && !windows) return { tone: "started", detail: "Rules only — still needs a lockbox and hours" };
+  if (!lockbox) return { tone: "started", detail: "Needs a lockbox code" };
+  return { tone: "started", detail: "Needs the hours people can visit" };
+}
+
 export function showingsReadiness(s: ShowingsWork, side: "listing" | "buying"): WorkReadiness {
   if (side === "listing") {
     if (!s.lockboxCode && !s.showingWindows && s.appointments.length === 0) return "empty";
@@ -65,16 +114,20 @@ export function showingsReadiness(s: ShowingsWork, side: "listing" | "buying"): 
   return "in_progress";
 }
 
-export function marketingReadiness(m: MarketingWork): WorkReadiness {
-  if (
-    m.syndicatedPortals.length === 0 &&
-    !m.socialPosted &&
-    !m.emailAnnouncementSent &&
-    m.openHouses.length === 0
-  ) {
-    return "empty";
-  }
-  if (m.syndicatedPortals.length > 0 && (m.socialPosted || m.openHouses.length > 0)) return "ready";
+export function marketingReadiness(m: MarketingWork, listingPublished = false): WorkReadiness {
+  const points = launchPoints(m, listingPublished);
+  const keptGoing = keepGoingPoints(m).some((p) => p.done);
+  const houseSteps = m.openHouses.some((h) => openHouseSteps(h).some((s) => s.done));
+  const started =
+    points.some((p) => p.done) ||
+    keptGoing ||
+    houseSteps ||
+    m.openHouses.length > 0 ||
+    m.campaignNotes.trim().length > 0;
+  if (!started) return "empty";
+  const live = listingPublished || m.mlsLive;
+  const onABigSite = BIG_PORTALS.some((portal) => m.syndicatedPortals.includes(portal));
+  if (live && onABigSite && (m.emailAnnouncementSent || m.socialPosted)) return "ready";
   return "in_progress";
 }
 

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { AlertTriangle, ArrowRight, Clock } from "lucide-react";
 import { useMemo } from "react";
 import { useTransactionsStore } from "@/stores";
+import { sectionHref } from "@/components/workspace/workspace-sidebar";
 import { getMostUrgentItem } from "@/lib/selectors/transactions";
 import { cn } from "@/lib/utils/cn";
 
@@ -54,7 +55,7 @@ export function UrgentBanner() {
 
   return (
     <Link
-      href={`/files/${urgent.fileId}`}
+      href={sectionHref(urgent.fileId, urgent.section, urgent.focus)}
       className={cn(
         // Stacks on narrow screens so the task title never truncates to nothing.
         "group flex flex-col gap-3 rounded-2xl border px-5 py-4 shadow-sm transition-all hover:shadow-md sm:flex-row sm:items-center sm:gap-4",

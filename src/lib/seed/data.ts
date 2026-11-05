@@ -52,6 +52,8 @@ interface SeedOptions {
   dueStepDays?: number;
   /** Optional work-record enrichment after defaults are applied. */
   enrichWork?: (file: TransactionFile) => void;
+  /** Story fields kept on the client profile so Contacts and the file agree. */
+  profile?: { relationshipHistory: string; goals: string; timeline: string };
 }
 
 function seedFile(answers: IntakeAnswers, opts: SeedOptions): TransactionFile {
@@ -172,6 +174,9 @@ function seedFile(answers: IntakeAnswers, opts: SeedOptions): TransactionFile {
     ...file.clientProfile,
     preferredContact: answers.preferredContact ?? "",
     preferredContactTime: answers.preferredContactTime ?? "",
+    relationshipHistory: opts.profile?.relationshipHistory ?? file.clientProfile.relationshipHistory,
+    goals: opts.profile?.goals ?? file.clientProfile.goals,
+    timeline: opts.profile?.timeline ?? file.clientProfile.timeline,
   };
 
   opts.enrichWork?.(file);
@@ -496,6 +501,7 @@ export const SEED_TRANSACTIONS: TransactionFile[] = [
       leadSource: "Website",
       coClientName: "Dev Rodriguez",
       preferredContact: "Email",
+      preferredContactTime: "Weekday afternoons",
     },
     {
       status: "in_progress",
@@ -521,6 +527,11 @@ export const SEED_TRANSACTIONS: TransactionFile[] = [
         { from: "client", body: "That's a relief. Let's go after the Barton Springs one.", hoursAgo: 44 },
       ],
       emails: [{ templateId: "welcome", subject: "Welcome — let's get started on your search", daysAgo: 27 }],
+      profile: {
+        relationshipHistory: "Corporate relocation through Meridian. They cover closing costs up to $8K.",
+        goals: "Buy near Barton Springs before the new job starts.",
+        timeline: "Possession before the 3rd.",
+      },
     }
   ),
 
@@ -536,6 +547,8 @@ export const SEED_TRANSACTIONS: TransactionFile[] = [
       isRelocation: false,
       builtBefore1978: false,
       leadSource: "Past Client",
+      preferredContact: "Phone",
+      preferredContactTime: "Weekday afternoons",
     },
     {
       status: "prospective",
@@ -552,6 +565,11 @@ export const SEED_TRANSACTIONS: TransactionFile[] = [
           daysAgo: 4,
         },
       ],
+      profile: {
+        relationshipHistory: "Past clients. The listing appointment went well.",
+        goals: "Be on the market before Thanksgiving.",
+        timeline: "CMA back to them by Friday.",
+      },
     }
   ),
 
@@ -609,6 +627,8 @@ export const SEED_TRANSACTIONS: TransactionFile[] = [
       isRelocation: false,
       builtBefore1978: true,
       leadSource: "Sign Call",
+      preferredContact: "Email",
+      preferredContactTime: "Mornings",
     },
     {
       status: "terminated",
@@ -637,6 +657,11 @@ export const SEED_TRANSACTIONS: TransactionFile[] = [
           daysAgo: 3,
         },
       ],
+      profile: {
+        relationshipHistory: "Called from the yard sign on Riverside.",
+        goals: "Relist in the spring rather than cut the price now.",
+        timeline: "Follow up in the spring.",
+      },
     }
   ),
 
@@ -651,6 +676,8 @@ export const SEED_TRANSACTIONS: TransactionFile[] = [
       isReferral: false,
       isRelocation: false,
       leadSource: "Zillow",
+      preferredContact: "Text",
+      preferredContactTime: "Evenings",
     },
     {
       status: "dropped",
@@ -661,9 +688,48 @@ export const SEED_TRANSACTIONS: TransactionFile[] = [
       notes: [
         { body: "Went quiet after three showings. Decided to renew his lease for another year. Re-engage in the spring.", daysAgo: 22 },
       ],
+      profile: {
+        relationshipHistory: "Zillow lead. Three showings, then he went quiet.",
+        goals: "Was looking at downtown condos, then renewed his lease.",
+        timeline: "Re-engage in the spring.",
+      },
     }
   ),
 ];
+
+const PROFILE_KEYS = ["relationshipHistory", "goals", "timeline", "preferredContact", "preferredContactTime"] as const;
+
+/**
+ * Copies seed profile text onto a saved file only where that file is still blank.
+ * A demo that already has these clients keeps their edits, and Contacts matches
+ * the client profile on the file.
+ */
+export function fillBlankSeedProfile(file: TransactionFile): TransactionFile {
+  const email = file.email.trim().toLowerCase();
+  if (!email) return file;
+  const seed = SEED_TRANSACTIONS.find((item) => item.email.trim().toLowerCase() === email);
+  if (!seed?.clientProfile) return file;
+
+  const clientProfile = { ...file.clientProfile };
+  let changed = false;
+  for (const key of PROFILE_KEYS) {
+    if (!clientProfile[key]?.trim() && seed.clientProfile[key]?.trim()) {
+      clientProfile[key] = seed.clientProfile[key];
+      changed = true;
+    }
+  }
+
+  const preferredContact = file.preferredContact?.trim() ? file.preferredContact : seed.preferredContact;
+  const preferredContactTime = file.preferredContactTime?.trim()
+    ? file.preferredContactTime
+    : seed.preferredContactTime;
+  if (preferredContact !== file.preferredContact || preferredContactTime !== file.preferredContactTime) {
+    changed = true;
+  }
+
+  if (!changed) return file;
+  return { ...file, preferredContact, preferredContactTime, clientProfile };
+}
 
 /** The three notification examples the scope document calls out by name. */
 export const SEED_NOTIFICATIONS = [

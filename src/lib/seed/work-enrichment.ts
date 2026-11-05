@@ -104,6 +104,13 @@ export function enrichMapleCourt(file: TransactionFile): void {
     noticeHours: 2,
     petInstructions: "No pets on site",
     alarmInstructions: "Alarm off during showing windows",
+    camerasOn: true,
+    cameraNote: "Cameras are monitoring the property.",
+    petsOnSite: false,
+    importantNote: "",
+    guidelines: [
+      { id: uuid(), text: "Please ring the doorbell before entering." },
+    ],
     appointments: [
       {
         id: uuid(),
@@ -131,9 +138,26 @@ export function enrichMapleCourt(file: TransactionFile): void {
   };
 
   file.marketing = {
-    syndicatedPortals: ["Zillow", "Realtor.com", "Redfin", "Brokerage site"],
+    syndicatedPortals: ["Zillow", "Realtor.com", "Redfin", "Homes.com", "Brokerage site", "Facebook Marketplace"],
     socialPosted: true,
     emailAnnouncementSent: true,
+    agentEmailSent: true,
+    comingSoon: true,
+    mlsLive: true,
+    yardSign: true,
+    flyer: true,
+    videoTour: true,
+    adBoost: true,
+    sellerUpdate: true,
+    refreshPost: true,
+    priceTalk: false,
+    dates: {
+      comingSoonAt: subDays(new Date(), 45).toISOString(),
+      goLiveAt: subDays(new Date(), 40).toISOString(),
+      brokerTourAt: subDays(new Date(), 39).toISOString(),
+      sellerUpdateAt: subDays(new Date(), 28).toISOString(),
+      refreshPostAt: subDays(new Date(), 30).toISOString(),
+    },
     openHouses: [
       {
         id: uuid(),
@@ -142,8 +166,19 @@ export function enrichMapleCourt(file: TransactionFile): void {
         endTime: "3:00 PM",
         visitors: 11,
         notes: "Two follow-up showings booked",
+        onMls: true,
+        socialReminder: true,
+        neighborsInvited: true,
+        thankYouSent: true,
+        sellerTold: true,
       },
     ],
+    dateNotes: {
+      comingSoonAt: "Instagram teaser with the kitchen photo",
+      refreshPostAt: "Second post after the first open house",
+    },
+    hiddenOverviewDates: [],
+    customDates: [],
     campaignNotes: "Boosted Instagram carousel week one.",
     updatedAt: subDays(new Date(), 30).toISOString(),
   };
@@ -299,6 +334,15 @@ export function enrichOakwood(file: TransactionFile): void {
     noticeHours: 2,
     petInstructions: "Biscuit crated in laundry — do not let out",
     alarmInstructions: "Code 3344; disarm panel by garage",
+    camerasOn: true,
+    cameraNote: "Cameras cover the front door and the main rooms.",
+    petsOnSite: true,
+    importantNote: "Wait at the front door. Do not use the side gate.",
+    guidelines: [
+      { id: uuid(), text: "Please ring the doorbell before entering." },
+      { id: uuid(), text: "A maximum of two people are allowed per visit." },
+      { id: uuid(), text: "Night visits are not allowed." },
+    ],
     appointments: [
       {
         id: uuid(),
@@ -333,9 +377,25 @@ export function enrichOakwood(file: TransactionFile): void {
   };
 
   file.marketing = {
-    syndicatedPortals: ["Zillow", "Realtor.com", "Redfin"],
+    syndicatedPortals: ["Zillow", "Realtor.com", "Redfin", "Homes.com"],
     socialPosted: true,
     emailAnnouncementSent: true,
+    agentEmailSent: true,
+    comingSoon: true,
+    mlsLive: true,
+    yardSign: true,
+    flyer: true,
+    videoTour: false,
+    adBoost: false,
+    sellerUpdate: true,
+    refreshPost: false,
+    priceTalk: false,
+    dates: {
+      comingSoonAt: subDays(new Date(), 18).toISOString(),
+      goLiveAt: subDays(new Date(), 14).toISOString(),
+      brokerTourAt: subDays(new Date(), 13).toISOString(),
+      sellerUpdateAt: subDays(new Date(), 7).toISOString(),
+    },
     openHouses: [
       {
         id: uuid(),
@@ -344,8 +404,16 @@ export function enrichOakwood(file: TransactionFile): void {
         endTime: "3:00 PM",
         visitors: 14,
         notes: "Two writing this week",
+        onMls: true,
+        socialReminder: true,
+        neighborsInvited: true,
+        thankYouSent: false,
+        sellerTold: true,
       },
     ],
+    dateNotes: {},
+    hiddenOverviewDates: [],
+    customDates: [],
     campaignNotes: "Featured in Saturday brokerage email blast.",
     updatedAt: subDays(new Date(), 7).toISOString(),
   };
@@ -448,6 +516,15 @@ export function enrichMarcusBuyer(file: TransactionFile): void {
         propertyAddress: "88 Twin Lakes",
         feedback: "Strong contender",
         sentiment: "hot",
+      },
+      {
+        id: uuid(),
+        scheduledAt: addDays(new Date(), 1).toISOString(),
+        agentOrBuyer: "Marcus Williams",
+        propertyAddress: "1842 Oakwood Drive, Austin, TX 78704",
+        feedback: "",
+        sentiment: "warm",
+        status: "booked",
       },
     ],
     updatedAt: subDays(new Date(), 2).toISOString(),
@@ -559,6 +636,11 @@ export function enrichShoalCreek(file: TransactionFile): void {
     noticeHours: 1,
     petInstructions: "",
     alarmInstructions: "",
+    camerasOn: false,
+    cameraNote: "",
+    petsOnSite: false,
+    importantNote: "",
+    guidelines: [],
     appointments: [
       {
         id: uuid(),
@@ -579,10 +661,29 @@ export function enrichShoalCreek(file: TransactionFile): void {
   };
 
   file.marketing = {
-    syndicatedPortals: ["Zillow", "Realtor.com"],
+    syndicatedPortals: ["Zillow", "Realtor.com", "Homes.com", "Brokerage site"],
     socialPosted: true,
     emailAnnouncementSent: true,
+    agentEmailSent: true,
+    comingSoon: false,
+    mlsLive: true,
+    yardSign: true,
+    flyer: true,
+    videoTour: true,
+    adBoost: false,
+    sellerUpdate: true,
+    refreshPost: true,
+    priceTalk: false,
+    dates: {
+      goLiveAt: subDays(new Date(), 80).toISOString(),
+      brokerTourAt: subDays(new Date(), 78).toISOString(),
+      sellerUpdateAt: subDays(new Date(), 65).toISOString(),
+      refreshPostAt: subDays(new Date(), 70).toISOString(),
+    },
     openHouses: [],
+    dateNotes: {},
+    hiddenOverviewDates: [],
+    customDates: [],
     campaignNotes: "Closed fast — cash offer week two.",
     updatedAt: subDays(new Date(), 50).toISOString(),
   };

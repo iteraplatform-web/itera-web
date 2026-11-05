@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { AlertTriangle, ArrowRight, CheckCircle2, Clock } from "lucide-react";
+import { sectionHref } from "@/components/workspace/workspace-sidebar";
 import { getMostUrgentItem } from "@/lib/selectors/transactions";
 import { cn } from "@/lib/utils/cn";
 import type { PortfolioStats, TransactionFile } from "@/types";
@@ -33,7 +34,7 @@ export function HomeSummary({
     <div className="grid gap-3 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
       {urgent ? (
         <Link
-          href={`/files/${urgent.fileId}?tab=checklist`}
+          href={sectionHref(urgent.fileId, urgent.section, urgent.focus)}
           className={cn(
             "group flex items-center gap-3.5 rounded-2xl border px-4 py-3.5 transition-shadow hover:shadow-md",
             hot ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"
