@@ -573,6 +573,48 @@ export const SEED_TRANSACTIONS: TransactionFile[] = [
     }
   ),
 
+  /* ── Open listing whose closing day has already passed, so the dashboard has one Late file ── */
+  seedFile(
+    {
+      clientName: "Nina Cole",
+      phone: "(555) 214-8801",
+      email: "nina.cole@email.com",
+      side: "listing",
+      propertyAddress: "418 Cedar Lane, Round Rock, TX 78681",
+      isReferral: false,
+      isRelocation: false,
+      builtBefore1978: false,
+      leadSource: "Past Client",
+      preferredContact: "Phone",
+      preferredContactTime: "Weekday mornings",
+    },
+    {
+      status: "under_contract",
+      listPrice: 415000,
+      openedDaysAgo: 48,
+      completedTasks: 14,
+      inProgressNext: true,
+      receivedDocs: 5,
+      firstDueInDays: -4,
+      dueStepDays: 3,
+      closingDate: subDays(new Date(), 6).toISOString(),
+      commissionRate: 0.03,
+      earnestMoney: 5000,
+      earnestReceived: true,
+      notes: [
+        {
+          body: "Closing day passed six days ago. The lender still has not cleared the file, so this listing stays open and late.",
+          daysAgo: 2,
+        },
+      ],
+      profile: {
+        relationshipHistory: "Past client. The house went under contract on the first weekend.",
+        goals: "Close as soon as the lender clears the file.",
+        timeline: "Closing day was six days ago.",
+      },
+    }
+  ),
+
   /* ── Closed and paid, for the completed-state view ── */
   seedFile(
     {

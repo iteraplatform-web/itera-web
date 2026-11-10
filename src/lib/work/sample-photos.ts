@@ -15,6 +15,7 @@ const SAMPLE_BY_ADDRESS: [string, string][] = [
   ["5610 Shoal Creek", "shoal-creek.jpg"],
   ["902 Riverside", "riverside-drive.jpg"],
   ["Condo in downtown Austin", "downtown-condo.jpg"],
+  ["418 Cedar Lane", "cedar-lane.jpg"],
 ];
 
 export function samplePhotoFor(file: Pick<TransactionFile, "propertyAddress">): string | undefined {

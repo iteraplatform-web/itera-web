@@ -1,7 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Calendar,
@@ -27,6 +27,7 @@ import { PipelineBar } from "@/components/dashboard/pipeline-bar";
 import { Button } from "@/components/ui/button";
 import { Segmented, EmptyState } from "@/components/ui/misc";
 import { useTransactionsStore, useAuthStore } from "@/stores";
+import { compareByDeadline, fileDeadline, DEADLINE_KEY, type DeadlineTone } from "@/lib/selectors/file-deadline";
 import { filterFiles, getPortfolioStats } from "@/lib/selectors/transactions";
 import { ensureWorkFields } from "@/lib/work/defaults";
 import { STATUS_LABELS, type TransactionStatus } from "@/types";
@@ -52,18 +53,22 @@ function DashboardContent() {
   const setSideFilter = useTransactionsStore((s) => s.setSideFilter);
   const searchQuery = useTransactionsStore((s) => s.searchQuery);
   const setSearchQuery = useTransactionsStore((s) => s.setSearchQuery);
+  const [deadlineFilter, setDeadlineFilter] = useState<DeadlineTone | "all">("all");
 
   const stats = useMemo(() => getPortfolioStats(normalizedFiles), [normalizedFiles]);
-  const files = useMemo(
-    () => filterFiles(normalizedFiles, statusFilter, sideFilter, searchQuery),
-    [normalizedFiles, statusFilter, sideFilter, searchQuery]
-  );
+  const files = useMemo(() => {
+    const matched = filterFiles(normalizedFiles, statusFilter, sideFilter, searchQuery).filter((file) =>
+      deadlineFilter === "all" ? true : fileDeadline(file).tone === deadlineFilter
+    );
+    return matched.slice().sort(compareByDeadline);
+  }, [normalizedFiles, statusFilter, sideFilter, searchQuery, deadlineFilter]);
 
-  const filtersActive = statusFilter !== "all" || sideFilter !== "all" || searchQuery !== "";
+  const filtersActive = statusFilter !== "all" || sideFilter !== "all" || deadlineFilter !== "all" || searchQuery !== "";
 
   const clearFilters = () => {
     setStatusFilter("all");
     setSideFilter("all");
+    setDeadlineFilter("all");
     setSearchQuery("");
   };
 
@@ -130,6 +135,19 @@ function DashboardContent() {
                     <option value="all">Listings and buyers</option>
                     <option value="listing">Listings only</option>
                     <option value="buying">Buyers only</option>
+                  </select>
+                  <select
+                    value={deadlineFilter}
+                    onChange={(e) => setDeadlineFilter(e.target.value as DeadlineTone | "all")}
+                    aria-label="Deadline"
+                    className="h-10 cursor-pointer rounded-xl border-0 bg-canvas px-3 text-[14px] font-medium text-ink-700 focus:outline-none focus:ring-2 focus:ring-itera-500"
+                  >
+                    <option value="all">All deadlines</option>
+                    {DEADLINE_KEY.map((item) => (
+                      <option key={item.tone} value={item.tone}>
+                        {item.label}
+                      </option>
+                    ))}
                   </select>
                   {filtersActive && (
                     <Button size="sm" variant="ghost" onClick={clearFilters}>

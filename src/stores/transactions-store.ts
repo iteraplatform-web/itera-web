@@ -424,7 +424,11 @@ export const useTransactionsStore = create<TransactionsState>()(
           });
         } else {
           set((s) => {
-            s.files = s.files.map((file) => fillBlankSeedProfile(ensureWorkFields(file)));
+            const saved = new Set(s.files.map((file) => file.email.trim().toLowerCase()).filter(Boolean));
+            const added = SEED_TRANSACTIONS.filter((file) => !saved.has(file.email.trim().toLowerCase())).map((file) =>
+              fillBlankSeedProfile(ensureWorkFields(file))
+            );
+            s.files = [...added, ...s.files.map((file) => fillBlankSeedProfile(ensureWorkFields(file)))];
           });
         }
         get().applyExpiredListings({ notify: false });
