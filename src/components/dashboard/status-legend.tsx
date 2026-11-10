@@ -35,7 +35,10 @@ function deadlineCopy(file: TransactionFile) {
   return { theme, short, long };
 }
 
-/** Small deadline dot in the top-right of the photo. No disc or border. */
+/**
+ * Small deadline dot in the top-right of the photo.
+ * A white edge and a dark hairline keep the colour readable on sky, grass, brick, and pale walls.
+ */
 export function DeadlineDot({ file }: { file: TransactionFile }) {
   const { theme, short, long } = deadlineCopy(file);
 
@@ -43,7 +46,10 @@ export function DeadlineDot({ file }: { file: TransactionFile }) {
     <span
       title={long}
       aria-label={short}
-      className={cn("absolute right-3 top-3.5 z-10 h-2.5 w-2.5 rounded-full", theme.solid)}
+      className={cn(
+        "absolute right-3 top-3.5 z-10 h-2.5 w-2.5 rounded-full shadow-[0_0_0_2px_#fff,0_0_0_3px_rgba(20,20,19,0.55)]",
+        theme.solid
+      )}
     />
   );
 }

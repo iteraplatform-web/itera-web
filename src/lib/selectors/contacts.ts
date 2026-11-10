@@ -1,5 +1,17 @@
 import { ensureWorkFields } from "@/lib/work/defaults";
+import { KANBAN_COLUMNS } from "@/lib/utils/status-theme";
 import type { TransactionFile, TransactionSide, TransactionStatus } from "@/types";
+
+/** Short file code shown in the contacts table. Stable for the life of the file. */
+export function shortFileId(id: string): string {
+  const compact = id.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+  return compact.slice(0, 8);
+}
+
+export type ContactSortKey = "id" | "name" | "status" | "side" | "property" | "phone" | "updated";
+export type ContactSortDirection = "asc" | "desc";
+
+const STATUS_RANK = new Map(KANBAN_COLUMNS.map((status, index) => [status, index]));
 
 /** Same open statuses the rest of the portfolio uses. */
 const OPEN_STATUSES: TransactionStatus[] = [
@@ -13,6 +25,8 @@ const OPEN_STATUSES: TransactionStatus[] = [
 /** One folder this person is on. */
 export interface ContactFile {
   id: string;
+  /** Eight-character code of `id`, safe to show in a column. */
+  displayId: string;
   address: string;
   side: TransactionSide;
   status: TransactionStatus;
@@ -73,6 +87,7 @@ function toContact(key: string, group: TransactionFile[]): ClientContact {
   const files: ContactFile[] = group
     .map((file) => ({
       id: file.id,
+      displayId: shortFileId(file.id),
       address: file.propertyAddress.trim(),
       side: file.side,
       status: file.status,
@@ -139,10 +154,12 @@ export function filterContacts(
   contacts: ClientContact[],
   status: TransactionStatus | "all",
   side: "all" | TransactionSide,
-  query: string
+  query: string,
+  openOnly = false
 ): ClientContact[] {
   const q = query.trim().toLowerCase();
   return contacts.filter((contact) => {
+    if (openOnly && contact.openCount === 0) return false;
     const matchesFile = contact.files.some((file) => {
       if (status !== "all" && file.status !== status) return false;
       if (side !== "all" && file.side !== side) return false;
@@ -161,11 +178,72 @@ export function filterContacts(
       contact.goals,
       contact.timeline,
       contact.latestNote,
-      ...contact.files.flatMap((file) => [file.address, file.leadSource, file.referralSource]),
+      ...contact.files.flatMap((file) => [file.id, file.displayId, file.address, file.leadSource, file.referralSource]),
     ]
       .join(" ")
       .toLowerCase();
     return haystack.includes(q);
+  });
+}
+
+/** The listing this row should show: the one that matches the filters, else the newest open file. */
+export function focusFile(
+  contact: ClientContact,
+  status: TransactionStatus | "all" = "all",
+  side: "all" | TransactionSide = "all"
+): ContactFile | undefined {
+  return (
+    contact.files.find((file) => {
+      if (status !== "all" && file.status !== status) return false;
+      if (side !== "all" && file.side !== side) return false;
+      return true;
+    }) ?? contact.files[0]
+  );
+}
+
+function sortValue(
+  contact: ClientContact,
+  key: ContactSortKey,
+  status: TransactionStatus | "all",
+  side: "all" | TransactionSide
+): string | number {
+  const file = focusFile(contact, status, side);
+  switch (key) {
+    case "id":
+      return file?.displayId ?? "";
+    case "name":
+      return contact.name.toLowerCase();
+    case "status":
+      return file ? (STATUS_RANK.get(file.status) ?? 99) : 99;
+    case "side":
+      return file?.side === "listing" ? 0 : file ? 1 : 2;
+    case "property":
+      return (file?.address ?? "").toLowerCase();
+    case "phone":
+      return contact.phone.replace(/\D/g, "");
+    case "updated":
+      return file?.updatedAt ?? "";
+  }
+}
+
+/** Sort a contact list. Ties fall back to name, A to Z. */
+export function sortContacts(
+  contacts: ClientContact[],
+  key: ContactSortKey,
+  direction: ContactSortDirection,
+  status: TransactionStatus | "all" = "all",
+  side: "all" | TransactionSide = "all"
+): ClientContact[] {
+  const factor = direction === "asc" ? 1 : -1;
+  return [...contacts].sort((a, b) => {
+    const left = sortValue(a, key, status, side);
+    const right = sortValue(b, key, status, side);
+    const result =
+      typeof left === "number" && typeof right === "number"
+        ? left - right
+        : String(left).localeCompare(String(right));
+    if (result !== 0) return result * factor;
+    return a.name.localeCompare(b.name);
   });
 }
 

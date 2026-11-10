@@ -4,6 +4,9 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   ChevronRight,
   Clock,
   Home,
@@ -20,8 +23,40 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { sectionHref } from "@/components/workspace/workspace-sidebar";
-import { contactTotals, filterContacts, type ClientContact, type ContactFile } from "@/lib/selectors/contacts";
+import { cn } from "@/lib/utils/cn";
+import { formatDate } from "@/lib/utils/dates";
+import {
+  contactTotals,
+  filterContacts,
+  focusFile,
+  sortContacts,
+  type ClientContact,
+  type ContactFile,
+  type ContactSortDirection,
+  type ContactSortKey,
+} from "@/lib/selectors/contacts";
 import { STATUS_LABELS, type TransactionSide, type TransactionStatus } from "@/types";
+
+const SORT_OPTIONS: { value: string; key: ContactSortKey; direction: ContactSortDirection; label: string }[] = [
+  { value: "name:asc", key: "name", direction: "asc", label: "Name A–Z" },
+  { value: "name:desc", key: "name", direction: "desc", label: "Name Z–A" },
+  { value: "status:asc", key: "status", direction: "asc", label: "Status" },
+  { value: "updated:desc", key: "updated", direction: "desc", label: "Recently updated" },
+  { value: "id:asc", key: "id", direction: "asc", label: "ID" },
+  { value: "side:asc", key: "side", direction: "asc", label: "Selling first" },
+];
+
+const FIRST_DIRECTION: Record<ContactSortKey, ContactSortDirection> = {
+  id: "asc",
+  name: "asc",
+  status: "asc",
+  side: "asc",
+  property: "asc",
+  phone: "asc",
+  updated: "desc",
+};
+
+type StatFilter = "all" | "open" | "selling" | "buying";
 
 export function ContactsBoard({
   contacts,
@@ -33,23 +68,70 @@ export function ContactsBoard({
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<TransactionStatus | "all">("all");
   const [side, setSide] = useState<"all" | TransactionSide>("all");
+  const [openOnly, setOpenOnly] = useState(false);
+  const [sortKey, setSortKey] = useState<ContactSortKey>("name");
+  const [sortDirection, setSortDirection] = useState<ContactSortDirection>("asc");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
   const totals = useMemo(() => contactTotals(contacts), [contacts]);
-  const visible = useMemo(
-    () => filterContacts(contacts, status, side, query),
-    [contacts, status, side, query]
-  );
-  const filtersOn = status !== "all" || side !== "all" || query.trim() !== "";
+  const visible = useMemo(() => {
+    const filtered = filterContacts(contacts, status, side, query, openOnly);
+    return sortContacts(filtered, sortKey, sortDirection, status, side);
+  }, [contacts, status, side, query, openOnly, sortKey, sortDirection]);
+  const filtersOn = status !== "all" || side !== "all" || openOnly || query.trim() !== "";
   const selected = useMemo(
     () => contacts.find((contact) => contact.key === selectedKey) ?? null,
     [contacts, selectedKey]
   );
+  const activeStat: StatFilter | null =
+    status !== "all"
+      ? null
+      : openOnly && side === "all"
+        ? "open"
+        : !openOnly && side === "listing"
+          ? "selling"
+          : !openOnly && side === "buying"
+            ? "buying"
+            : !openOnly && side === "all" && query.trim() === ""
+              ? "all"
+              : null;
 
   const clear = () => {
     setQuery("");
     setStatus("all");
     setSide("all");
+    setOpenOnly(false);
+  };
+
+  const applyStat = (which: StatFilter) => {
+    if (activeStat === which && which !== "all") {
+      clear();
+      return;
+    }
+    setQuery("");
+    setStatus("all");
+    if (which === "all") {
+      setOpenOnly(false);
+      setSide("all");
+    } else if (which === "open") {
+      setOpenOnly(true);
+      setSide("all");
+    } else if (which === "selling") {
+      setOpenOnly(false);
+      setSide("listing");
+    } else {
+      setOpenOnly(false);
+      setSide("buying");
+    }
+  };
+
+  const onSort = (key: ContactSortKey) => {
+    if (sortKey === key) {
+      setSortDirection((direction) => (direction === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortKey(key);
+    setSortDirection(FIRST_DIRECTION[key]);
   };
 
   return (
@@ -60,16 +142,16 @@ export function ContactsBoard({
         </h1>
         <p className="mt-0.5 text-[15px] text-ink-500">{format(new Date(), "EEEE, MMMM d")}</p>
         <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-ink-500">
-          Every client on {agentName}&apos;s books. Open a person for the full story, goals, and
-          every file.
+          Every client on {agentName}&apos;s books. Each row shows the file ID, the client, then
+          the status of their current listing.
         </p>
       </div>
 
       <div className="stagger grid gap-px overflow-hidden rounded-2xl border border-hairline bg-hairline shadow-sm sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile label="Clients" value={totals.clients} icon={Users} />
-        <StatTile label="With open files" value={totals.active} icon={UserRound} />
-        <StatTile label="Selling" value={totals.selling} icon={Home} />
-        <StatTile label="Buying" value={totals.buying} icon={KeyRound} />
+        <StatTile label="Clients" value={totals.clients} icon={Users} active={activeStat === "all"} onClick={() => applyStat("all")} />
+        <StatTile label="With open files" value={totals.active} icon={UserRound} active={activeStat === "open"} onClick={() => applyStat("open")} />
+        <StatTile label="Selling" value={totals.selling} icon={Home} active={activeStat === "selling"} onClick={() => applyStat("selling")} />
+        <StatTile label="Buying" value={totals.buying} icon={KeyRound} active={activeStat === "buying"} onClick={() => applyStat("buying")} />
       </div>
 
       <div className="rounded-2xl border border-hairline bg-surface p-3 shadow-sm">
@@ -80,7 +162,7 @@ export function ContactsBoard({
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search by name, phone, email, or address…"
+              placeholder="Search by name, phone, email, address, or ID…"
               aria-label="Search contacts"
               className="w-full rounded-xl border-0 bg-canvas py-2.5 pl-10 pr-9 text-[15px] text-ink-950 ring-1 ring-inset ring-transparent transition-shadow placeholder:text-ink-400 focus:bg-surface focus:outline-none focus:ring-2 focus:ring-itera-500"
             />
@@ -97,7 +179,10 @@ export function ContactsBoard({
           </div>
           <select
             value={status}
-            onChange={(e) => setStatus(e.target.value as TransactionStatus | "all")}
+            onChange={(e) => {
+              setStatus(e.target.value as TransactionStatus | "all");
+              setOpenOnly(false);
+            }}
             aria-label="Status"
             className="h-10 cursor-pointer rounded-xl border-0 bg-canvas px-3 text-[15px] font-medium text-ink-700 focus:outline-none focus:ring-2 focus:ring-itera-500"
           >
@@ -110,13 +195,36 @@ export function ContactsBoard({
           </select>
           <select
             value={side}
-            onChange={(e) => setSide(e.target.value as "all" | TransactionSide)}
+            onChange={(e) => {
+              setSide(e.target.value as "all" | TransactionSide);
+              setOpenOnly(false);
+            }}
             aria-label="Side"
             className="h-10 cursor-pointer rounded-xl border-0 bg-canvas px-3 text-[15px] font-medium text-ink-700 focus:outline-none focus:ring-2 focus:ring-itera-500"
           >
             <option value="all">Selling and buying</option>
             <option value="listing">Selling</option>
             <option value="buying">Buying</option>
+          </select>
+          <select
+            value={`${sortKey}:${sortDirection}`}
+            onChange={(e) => {
+              const next = SORT_OPTIONS.find((option) => option.value === e.target.value);
+              if (!next) return;
+              setSortKey(next.key);
+              setSortDirection(next.direction);
+            }}
+            aria-label="Sort contacts"
+            className="h-10 cursor-pointer rounded-xl border-0 bg-canvas px-3 text-[15px] font-medium text-ink-700 focus:outline-none focus:ring-2 focus:ring-itera-500"
+          >
+            {SORT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                Sort: {option.label}
+              </option>
+            ))}
+            {!SORT_OPTIONS.some((option) => option.value === `${sortKey}:${sortDirection}`) && (
+              <option value={`${sortKey}:${sortDirection}`}>Sort: {sortKey}</option>
+            )}
           </select>
         </div>
       </div>
@@ -162,20 +270,49 @@ export function ContactsBoard({
               <button
                 type="button"
                 onClick={clear}
-                className="text-[13px] font-semibold text-ink-600 hover:text-ink-950"
+                className="shrink-0 text-[13px] font-semibold text-ink-600 hover:text-ink-950"
               >
                 Clear filters
               </button>
             )}
           </div>
-          <div className="divide-y divide-hairline">
+
+          <div className="divide-y divide-hairline md:hidden">
             {visible.map((contact) => (
-              <ContactRow
+              <ContactCard
                 key={contact.key}
                 contact={contact}
+                file={focusFile(contact, status, side)}
                 onOpen={() => setSelectedKey(contact.key)}
               />
             ))}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full min-w-[980px] border-collapse text-left text-[14px]">
+              <thead>
+                <tr className="border-b border-hairline bg-canvas text-[12px] font-semibold uppercase tracking-[0.06em] text-ink-500">
+                  <SortHeader label="ID" sortKey="id" active={sortKey} direction={sortDirection} onSort={onSort} className="px-5 py-3" />
+                  <SortHeader label="Client" sortKey="name" active={sortKey} direction={sortDirection} onSort={onSort} className="px-4 py-3" />
+                  <SortHeader label="Listing status" sortKey="status" active={sortKey} direction={sortDirection} onSort={onSort} className="px-4 py-3" />
+                  <SortHeader label="Side" sortKey="side" active={sortKey} direction={sortDirection} onSort={onSort} className="px-4 py-3" />
+                  <SortHeader label="Property" sortKey="property" active={sortKey} direction={sortDirection} onSort={onSort} className="px-4 py-3" />
+                  <SortHeader label="Phone" sortKey="phone" active={sortKey} direction={sortDirection} onSort={onSort} className="px-4 py-3" />
+                  <SortHeader label="Updated" sortKey="updated" active={sortKey} direction={sortDirection} onSort={onSort} className="px-4 py-3" />
+                  <th className="w-10 px-3 py-3" aria-hidden />
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((contact) => (
+                  <ContactTableRow
+                    key={contact.key}
+                    contact={contact}
+                    file={focusFile(contact, status, side)}
+                    onOpen={() => setSelectedKey(contact.key)}
+                  />
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
@@ -189,57 +326,172 @@ function StatTile({
   label,
   value,
   icon: Icon,
+  active,
+  onClick,
 }: {
   label: string;
   value: number;
   icon: React.ElementType;
+  active: boolean;
+  onClick: () => void;
 }) {
   return (
-    <div className="bg-surface px-5 py-4">
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "bg-surface px-5 py-4 text-left transition-colors hover:bg-canvas/80",
+        active && "shadow-[inset_0_-3px_0_0_#141413]"
+      )}
+    >
       <div className="flex items-center justify-between">
         <p className="section-title">{label}</p>
         <Icon className="h-4 w-4 text-ink-400" />
       </div>
       <p className="tnum mt-2.5 text-[28px] font-bold leading-none tracking-[-0.03em] text-ink-950">{value}</p>
-    </div>
+    </button>
   );
 }
 
-/** List row: only the facts you need to find someone. Open the popup for the rest. */
-function ContactRow({ contact, onOpen }: { contact: ClientContact; onOpen: () => void }) {
-  const primary = contact.files[0];
-  const kind = primary ? (primary.side === "listing" ? "Selling" : "Buying") : null;
-  const address = primary?.address || "No address yet";
+function SortHeader({
+  label,
+  sortKey,
+  active,
+  direction,
+  onSort,
+  className,
+}: {
+  label: string;
+  sortKey: ContactSortKey;
+  active: ContactSortKey;
+  direction: ContactSortDirection;
+  onSort: (key: ContactSortKey) => void;
+  className?: string;
+}) {
+  const isActive = active === sortKey;
+  return (
+    <th className={cn("font-semibold", className)} aria-sort={isActive ? (direction === "asc" ? "ascending" : "descending") : "none"}>
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className={cn(
+          "inline-flex items-center gap-1 uppercase tracking-[0.06em] hover:text-ink-950",
+          isActive ? "text-ink-950" : "text-ink-500"
+        )}
+      >
+        {label}
+        {isActive ? (
+          direction === "asc" ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
+        ) : (
+          <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />
+        )}
+      </button>
+    </th>
+  );
+}
+
+function listingKind(file: ContactFile | undefined): string {
+  if (!file) return "No listing";
+  return file.side === "listing" ? "Selling" : "Buying";
+}
+
+function ContactTableRow({
+  contact,
+  file,
+  onOpen,
+}: {
+  contact: ClientContact;
+  file: ContactFile | undefined;
+  onOpen: () => void;
+}) {
+  const primary = file;
+  const extra = Math.max(0, contact.files.length - 1);
 
   return (
-    <button
-      type="button"
+    <tr
       onClick={onOpen}
-      className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-canvas/70 sm:px-5"
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onOpen();
+        }
+      }}
+      tabIndex={0}
+      className="cursor-pointer border-b border-hairline transition-colors last:border-0 hover:bg-canvas focus:bg-canvas focus:outline-none"
     >
-      <Avatar name={contact.name} size="md" />
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-2">
-          <span className="truncate text-[16px] font-semibold text-ink-950">{contact.name}</span>
-          {primary && <StatusBadge status={primary.status} size="sm" className="shrink-0" />}
+      <td className="whitespace-nowrap px-5 py-3.5">
+        <span className="font-mono text-[13px] font-semibold tracking-[0.04em] text-ink-800" title={primary?.id}>
+          {primary?.displayId ?? "—"}
         </span>
-        <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 text-[14px] text-ink-500">
-          <span className="tnum font-medium text-ink-700">{contact.phone || "No phone"}</span>
-          {kind && (
-            <>
-              <span className="text-ink-300" aria-hidden>
-                ·
-              </span>
-              <span>{kind}</span>
-            </>
-          )}
-          <span className="text-ink-300" aria-hidden>
-            ·
+      </td>
+      <td className="max-w-[240px] px-4 py-3.5">
+        <span className="flex items-center gap-3">
+          <Avatar name={contact.name} size="sm" />
+          <span className="min-w-0">
+            <span className="block truncate font-semibold text-ink-950">{contact.name}</span>
+            <span className="block truncate text-[13px] text-ink-500">
+              {extra > 0 ? `${contact.files.length} listings` : contact.email || "No email"}
+            </span>
           </span>
-          <span className="min-w-0 truncate">{address}</span>
+        </span>
+      </td>
+      <td className="whitespace-nowrap px-4 py-3.5">
+        {primary ? (
+          <span className="inline-flex items-center gap-2">
+            <StatusBadge status={primary.status} size="sm" />
+            {extra > 0 && <span className="text-[12px] font-medium text-ink-400">+{extra}</span>}
+          </span>
+        ) : (
+          <span className="text-ink-400">No listing</span>
+        )}
+      </td>
+      <td className="whitespace-nowrap px-4 py-3.5 text-ink-600">{listingKind(primary)}</td>
+      <td className="max-w-[260px] px-4 py-3.5">
+        <span className="block truncate text-ink-700">{primary?.address || "No address yet"}</span>
+      </td>
+      <td className="tnum whitespace-nowrap px-4 py-3.5 font-medium text-ink-800">{contact.phone || "—"}</td>
+      <td className="whitespace-nowrap px-4 py-3.5 text-ink-500">
+        {primary?.updatedAt ? formatDate(primary.updatedAt, "MMM d") : "—"}
+      </td>
+      <td className="px-3 py-3.5">
+        <ChevronRight className="h-4 w-4 text-ink-300" aria-hidden />
+      </td>
+    </tr>
+  );
+}
+
+function ContactCard({
+  contact,
+  file,
+  onOpen,
+}: {
+  contact: ClientContact;
+  file: ContactFile | undefined;
+  onOpen: () => void;
+}) {
+  const primary = file;
+  const extra = Math.max(0, contact.files.length - 1);
+
+  return (
+    <button type="button" onClick={onOpen} className="flex w-full flex-col gap-2 px-4 py-3.5 text-left hover:bg-canvas/70">
+      <span className="flex items-center justify-between gap-3">
+        <span className="font-mono text-[12px] font-semibold tracking-[0.04em] text-ink-500">{primary?.displayId ?? "—"}</span>
+        {primary ? <StatusBadge status={primary.status} size="sm" /> : <span className="text-[13px] text-ink-400">No listing</span>}
+      </span>
+      <span className="flex items-center gap-3">
+        <Avatar name={contact.name} size="sm" />
+        <span className="min-w-0">
+          <span className="block truncate text-[16px] font-semibold text-ink-950">{contact.name}</span>
+          <span className="mt-0.5 block truncate text-[13px] text-ink-500">
+            {listingKind(primary)}
+            <span className="text-ink-300"> · </span>
+            {primary?.address || "No address yet"}
+            {extra > 0 ? ` · +${extra} more` : ""}
+          </span>
         </span>
       </span>
-      <ChevronRight className="h-4 w-4 shrink-0 text-ink-300" aria-hidden />
+      <span className="tnum text-[13px] font-medium text-ink-700">{contact.phone || "No phone"}</span>
     </button>
   );
 }
@@ -414,6 +666,8 @@ function FileDetailRow({ file, onNavigate }: { file: ContactFile; onNavigate: ()
           {file.address || "No address yet"}
         </span>
         <span className="mt-0.5 block text-[13px] text-ink-500">
+          <span className="font-mono text-[12px] font-semibold tracking-[0.04em] text-ink-700">{file.displayId}</span>
+          <span className="text-ink-300"> · </span>
           {kind}
           <span className="text-ink-300"> · </span>
           <span className="tnum">{price}</span>

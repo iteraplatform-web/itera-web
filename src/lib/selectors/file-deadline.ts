@@ -17,25 +17,25 @@ export const DEADLINE_KEY: {
     tone: "late",
     label: "Late",
     hint: "The closing date or the listing end date has already passed, and this file is still open.",
-    solid: "bg-red-500",
+    solid: "bg-[#d01212]",
   },
   {
     tone: "urgent",
     label: "Urgent",
     hint: "The closing date or the listing end date is today, or within the next 10 days.",
-    solid: "bg-amber-500",
+    solid: "bg-[#e25a00]",
   },
   {
     tone: "normal",
     label: "Normal",
     hint: "The closing date or the listing end date is more than 10 days away, so there is still time.",
-    solid: "bg-emerald-500",
+    solid: "bg-[#0c8a4b]",
   },
   {
     tone: "none",
     label: "No date",
     hint: "No closing date and no listing end date has been set on this file yet.",
-    solid: "bg-ink-400",
+    solid: "bg-[#3a3a38]",
   },
 ];
 
